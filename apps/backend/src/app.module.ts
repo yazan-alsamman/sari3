@@ -8,6 +8,8 @@ import { AuthModule } from './modules/auth/auth.module';
 import { MediaModule } from './modules/media/media.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { ZonesModule } from './modules/zones/zones.module';
+import { PricingModule } from './modules/pricing/pricing.module';
 
 @Module({
   imports: [
@@ -22,6 +24,8 @@ import { AuditModule } from './modules/audit/audit.module';
     AuthModule,
     MediaModule,
     AdminModule,
+    ZonesModule,
+    PricingModule,
   ],
 })
 export class AppModule {}

@@ -149,18 +149,22 @@ Eligibility/uniqueness: ADR-012 / ADR-004.
 
 ---
 
-## Pricing & service zones (admin configuration)
+## Pricing & service zones (Phase 3 — ADR-005 / ADR-006)
 
-| Method | Path | Actor | Permission | Domain action |
+| Method | Path | Actor | Notes | Status |
 |---|---|---|---|---|
-| GET | `/admin/service-zones` | Admin | zones.read | List zones |
-| POST | `/admin/service-zones` | Admin | zones.write | Create zone |
-| PATCH | `/admin/service-zones/:id` | Admin | zones.write | Update zone |
-| GET | `/admin/pricing-rules` | Admin | pricing.read | List rules |
-| POST | `/admin/pricing-rules` | Admin | pricing.write | Create rule version |
-| PATCH | `/admin/pricing-rules/:id` | Admin | pricing.write | Update/disable rule |
+| GET | `/service-zones` | Public | Active named areas only | Phase 3 |
+| GET | `/admin/service-zones` | Admin | All zones | Phase 3 |
+| POST | `/admin/service-zones` | Admin | Create zone | Phase 3 |
+| PATCH | `/admin/service-zones/:id` | Admin | Update / deactivate | Phase 3 |
+| POST | `/pricing/preview` | Public | Same calculator as snapshot | Phase 3 |
+| POST | `/pricing/snapshots` | Public | Immutable confirm snapshot | Phase 3 |
+| GET | `/pricing/snapshots/:id` | Public | Fetch snapshot | Phase 3 |
+| GET | `/admin/pricing-rules` | Admin | Version history | Phase 3 |
+| GET | `/admin/pricing-rules/active` | Admin | Active rule | Phase 3 |
+| POST | `/admin/pricing-rules` | Admin | Publish new version | Phase 3 |
 
-Exact permission names: **TBD — ADR-003**.
+Seed amounts = demo defaults until commercial sheet signed (LAUNCH_PATH). Unknown/inactive zones rejected.
 
 ---
 

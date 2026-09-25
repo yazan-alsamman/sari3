@@ -52,13 +52,17 @@ async function bootstrap() {
   const swagger = new DocumentBuilder()
     .setTitle('Saree\'e Backend API')
     .setDescription(
-      "Production API for Saree'e (سريع حوش بلاس). Phase 2 — identity, sessions, driver KYC approval.",
+      "Production API for Saree'e (سريع حوش بلاس). Phase 3 — zones & pricing.",
     )
     .setVersion(appVersion)
     .addTag('health')
     .addTag('auth')
     .addTag('media')
     .addTag('admin-drivers')
+    .addTag('service-zones')
+    .addTag('admin-zones')
+    .addTag('pricing')
+    .addTag('admin-pricing')
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, swagger);

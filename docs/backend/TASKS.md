@@ -52,7 +52,7 @@ Stop and update the relevant ADR/document first.
 
 ## Phase 2 — Identity & Access
 
-**IN PROGRESS** (slice: password auth + sessions + driver KYC approve; OTP deferred to ADR-014).
+**COMPLETE** (identity slice 2026-09-25). OTP / MinIO / demo-client wiring deferred.
 
 Depends on: ADR-002, ADR-003, ADR-015 (ACCEPTED). Local media adapter until MinIO.
 
@@ -66,7 +66,22 @@ Depends on: ADR-002, ADR-003, ADR-015 (ACCEPTED). Local media adapter until MinI
 - [x] Admin list pending / approve / reject drivers
 - [ ] Phone OTP verification (blocked on ADR-014 PROPOSED)
 - [ ] MinIO/S3 adapter swap (ADR-015 production path; local adapter preserves flow)
-- [ ] Wire demo client login/register to these APIs (optional Phase 2 follow-up)
+- [ ] Wire demo client login/register to these APIs (optional follow-up)
+
+## Phase 3 — Zones & Pricing
+
+**COMPLETE** (core slice 2026-09-25). Demo-client wiring optional.
+
+Depends on: ADR-005, ADR-006 ACCEPTED; seed amounts = demo defaults per LAUNCH_PATH.
+
+- [x] Prisma: service_zones, pricing_rule_versions, price_snapshots
+- [x] Seed 10 v1 named areas (no OTHER; unknown rejected)
+- [x] Seed pricing rule v1 from demo defaults
+- [x] GET /service-zones (public active)
+- [x] Admin zone CRUD
+- [x] POST /pricing/preview + snapshots
+- [x] Admin publish pricing rule versions
+- [ ] Wire demo client price preview to API (optional)
 
 ## Later phases
 

@@ -3,8 +3,8 @@
 Production NestJS backend for Saree'e (سريع حوش بلاس).
 
 **Authority:** ACCEPTED ADR-001 (modular NestJS monolith + workers).  
-**Phase:** 2 — Identity (auth, sessions, driver KYC approve, local media adapter).  
-OTP verification deferred (ADR-014). MinIO swap later (ADR-015 production path).
+**Phase:** 3 — Zones & pricing (named areas, preview, immutable snapshots).  
+Identity (Phase 2) + foundation (Phase 1) included. OTP/MinIO still deferred.
 
 Domain APIs beyond identity (orders, dispatch, finance) start in Phase 3+ per [`docs/backend/LAUNCH_PATH.md`](../../docs/backend/LAUNCH_PATH.md).
 

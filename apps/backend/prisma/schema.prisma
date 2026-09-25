@@ -1,4 +1,5 @@
-// Prisma schema — Phase 2 Identity (ADR-002, ADR-003, ADR-015).
+// Prisma schema — Phase 2 Identity + Phase 3 Zones & Pricing
+// (ADR-002, ADR-003, ADR-015, ADR-005, ADR-006).
 
 generator client {
   provider = "prisma-client-js"
@@ -33,6 +34,16 @@ enum MediaPurpose {
   delivery_proof
 }
 
+enum DeliveryMode {
+  standard
+  vip
+}
+
+enum WeightClass {
+  light
+  heavy
+}
+
 /// Schema bootstrap marker — Phase 1.
 model SchemaMeta {
   id        String   @id @default(cuid())
@@ -53,11 +64,12 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  customerProfile CustomerProfile?
-  driverProfile   DriverProfile?
-  sessions        RefreshSession[]
-  mediaObjects    MediaObject[]
-  auditLogs       AuditLog[]       @relation("AuditActor")
+  customerProfile       CustomerProfile?
+  driverProfile         DriverProfile?
+  sessions              RefreshSession[]
+  mediaObjects          MediaObject[]
+  auditLogs             AuditLog[]             @relation("AuditActor")
+  pricingRuleVersions   PricingRuleVersion[]   @relation("PricingRuleAuthor")
 
   @@map("users")
 }
@@ -146,4 +158,67 @@ model AuditLog {
   @@index([actorUserId, createdAt])
   @@index([targetType, targetId])
   @@map("audit_logs")
+}
+
+/// Named service area (ADR-005 v1 — no polygon required).
+model ServiceZone {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  nameAr      String   @unique
+  active      Boolean  @default(true)
+  centroidLat Float?
+  centroidLng Float?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([active, sortOrder])
+  @@map("service_zones")
+}
+
+/// Versioned admin pricing config (ADR-006). Only one row should be active.
+model PricingRuleVersion {
+  id              String   @id @default(cuid())
+  version         Int      @unique
+  active          Boolean  @default(false)
+  currencyCode    String
+  currencyLabel   String
+  /// Calculator config: zoneBases, crossZoneMultiplier, vipSurchargeRate, perStop, heavySurcharge, routeOverrides
+  configJson      Json
+  createdByUserId String?
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  createdBy User?           @relation("PricingRuleAuthor", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  snapshots PriceSnapshot[]
+
+  @@index([active])
+  @@map("pricing_rule_versions")
+}
+
+/// Immutable price breakdown at confirm time (ADR-006). Order linkage in Phase 4.
+model PriceSnapshot {
+  id                   String      @id @default(cuid())
+  pricingRuleVersionId String
+  pickupZoneId         String
+  deliveryZoneId       String
+  pickupZoneName       String
+  deliveryZoneName     String
+  mode                 DeliveryMode
+  weightClass          WeightClass @default(light)
+  intermediateStopCount Int        @default(0)
+  currencyCode         String
+  currencyLabel        String
+  baseAmount           Int
+  modeSurcharge        Int
+  stopsSurcharge       Int
+  heavySurcharge       Int         @default(0)
+  totalAmount          Int
+  componentsJson       Json
+  createdAt            DateTime    @default(now())
+
+  pricingRuleVersion PricingRuleVersion @relation(fields: [pricingRuleVersionId], references: [id])
+
+  @@index([createdAt])
+  @@map("price_snapshots")
 }
