@@ -112,6 +112,7 @@ The backend is the source of truth for:
 | [`API_GUIDELINES.md`](API_GUIDELINES.md) | REST conventions |
 | [`API_ENDPOINT_CATALOG.md`](API_ENDPOINT_CATALOG.md) | Endpoint planning catalog |
 | [`ADMIN.md`](ADMIN.md) | Admin operations and client scope |
+| [`DEMO_ADMIN_UI.md`](DEMO_ADMIN_UI.md) | Prototype Admin Web UI at `/admin` (demo credentials & 80/20 / ≤2) |
 | [`MEDIA.md`](MEDIA.md) | Media/object storage |
 | [`REALTIME.md`](REALTIME.md) | Realtime transport strategy |
 | [`JOBS.md`](JOBS.md) | Background jobs |

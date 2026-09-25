@@ -10,41 +10,53 @@ Do not implement a later phase by guessing missing architecture.
 
 Stop and update the relevant ADR/document first.
 
-## Phase 0 â€” Documentation foundation
+## Phase 0 — Documentation foundation
 
 - [x] Normalize documentation under `docs/`
 - [x] Split merged documents
 - [x] Create ADR-001..020 templates (PROPOSED)
-- [ ] Approve blocking ADRs (Phase 0B)
+- [x] Write market launch path [`LAUNCH_PATH.md`](LAUNCH_PATH.md)
+- [x] Fill critical ADR decision drafts (001–009, 013, 015)
+- [x] Product Owner / CTO accepts critical ADRs (Phase 0B gate) — 2026-09-22
 
-## Phase 0B â€” Architecture decision freeze
+## Phase 0B — Architecture decision freeze
 
-- [ ] Finalize domain model (ADR-001 related docs)
-- [ ] Finalize order lifecycle (ADR-004)
-- [ ] Finalize pricing rules (ADR-006) â€” business amounts required
-- [ ] Finalize capacity model (ADR-008) â€” business limits required
-- [ ] Finalize dispatch algorithm (ADR-007)
-- [ ] Finalize multi-order routing (ADR-009)
-- [ ] Finalize authorization (ADR-003)
-- [ ] Finalize tracking/realtime (ADR-010 / ADR-011 / ADR-016)
-- [ ] Finalize retention (ADR-018)
-- [ ] Approve required ADRs before Phase 1
+- [x] **ACCEPT** ADR-001 System Architecture
+- [x] **ACCEPT** ADR-002 Authentication
+- [x] **ACCEPT** ADR-003 Authorization
+- [x] **ACCEPT** ADR-004 Order lifecycle (rating after COMPLETED)
+- [x] **ACCEPT** ADR-005 Service zones (named area list)
+- [x] **ACCEPT** ADR-006 Pricing + snapshot
+- [x] **ACCEPT** ADR-008 Capacity / basket matching
+- [x] **ACCEPT** ADR-007 Dispatch (parallel offers, 15s)
+- [x] **ACCEPT** ADR-009 Multi-order (max 2, ?5 min gate)
+- [x] **ACCEPT** ADR-013 Finance 75/25 + bonuses
+- [x] **ACCEPT** ADR-015 Media / KYC storage
+- [ ] Wave-2 drafts: ADR-010, 011, 012, 014, 016–020
+- [x] Sync `ORDER_LIFECYCLE.md` after ADR-004 ACCEPTED (Option B noted)
 
-## Phase 1
+## Phase 1 — Foundation
 
-- [ ] Initialize repository and CI
-- [ ] Configure NestJS/TypeScript
-- [ ] Configure PostgreSQL/Prisma
-- [ ] Configure Redis/BullMQ
-- [ ] Add health/readiness
-- [ ] Add structured logging
-- [ ] Add API documentation
+**COMPLETE** (local verify 2026-09-22; CI workflow added). Critical ADRs ACCEPTED (CTO 2026-09-22).
+
+- [x] Initialize `apps/backend` layout
+- [x] Configure NestJS + TypeScript strict
+- [x] Configure PostgreSQL/Prisma (bootstrap `schema_meta` migration)
+- [x] Configure Redis adapter + `docker-compose.yml`
+- [x] Health liveness + readiness
+- [x] Env validation + boot logging
+- [x] OpenAPI at `/docs`
+- [x] CI workflow (GitHub Actions — typecheck + unit tests)
+- [x] Verify migrate + `/health/ready` locally (Postgres 16 + Redis; Docker Desktop install blocked on this machine)
+- [x] CORS for demo client origins + client Phase 1 health banner (not domain cutover)
 
 ## Later phases
 
-Use [`ROADMAP.md`](ROADMAP.md) and create detailed issue-level tasks only after the preceding phase is frozen and verified.
+Use [`ROADMAP.md`](ROADMAP.md) and [`LAUNCH_PATH.md`](LAUNCH_PATH.md).
 
 ## Related documents
 
+- [`LAUNCH_PATH.md`](LAUNCH_PATH.md)
+- [`PHASE1_PREFLIGHT.md`](PHASE1_PREFLIGHT.md)
 - [`ROADMAP.md`](ROADMAP.md)
 - [`ADR_INDEX.md`](ADR_INDEX.md)

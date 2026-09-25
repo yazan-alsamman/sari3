@@ -23,8 +23,8 @@ Owning decision record: [`adrs/ADR-013-financial-ledger.md`](adrs/ADR-013-financ
 | Concept | Status |
 |---|---|
 | Delivery charge | Comes from price snapshot — amounts TBD ADR-006 |
-| Driver earning | Calculation **TBD — Business Decision Required** / ADR-013 |
-| Platform share | Whether always applied and formula **TBD — Business Decision Required** / ADR-013 |
+| Driver earning | Calculation **TBD — Business Decision Required** / ADR-013. **Demo UI only:** 80% of delivery charge — see [`DEMO_ADMIN_UI.md`](DEMO_ADMIN_UI.md) (not ACCEPTED) |
+| Platform share | Whether always applied and formula **TBD — Business Decision Required** / ADR-013. **Demo UI only:** 20% of delivery charge — see [`DEMO_ADMIN_UI.md`](DEMO_ADMIN_UI.md) (not ACCEPTED) |
 | Incentives | Rules and amounts **TBD — Business Decision Required** |
 | Penalties | Rules and amounts **TBD — Business Decision Required** |
 | Manual adjustments | Authorization matrix **TBD — ADR-003 / ADR-013** |

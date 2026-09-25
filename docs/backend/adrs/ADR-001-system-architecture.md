@@ -1,62 +1,106 @@
-ï»¿# ADR-001: System Architecture & Module Boundaries
+# ADR-001: System Architecture & Module Boundaries
 
 ## Status
 
-PROPOSED
+ACCEPTED
 
 ## Context
 
-Saree'e needs a clear backend and overall system architecture so Flutter clients, admin APIs, workers, and infrastructure providers do not entangle domain rules with frameworks.
+Saree'e needs a clear backend and overall system architecture so Flutter/Capacitor clients, admin APIs, workers, and infrastructure providers do not entangle domain rules with frameworks.
 
 ## Decision
 
-TBD â€” Business/Architecture Decision Required
+**Choose Option B:** Modular NestJS monolith (single deployable API) **plus separate worker processes** sharing the same domain/application packages.
+
+### Stack (production intent)
+
+- Node.js + TypeScript (strict)
+- NestJS modular monolith for HTTP/WebSocket presentation
+- PostgreSQL + Prisma (infrastructure only)
+- Redis + BullMQ for jobs/queues (workers)
+- OpenAPI/Swagger for contracts
+- Docker for local/prod parity
+
+### Boundaries
+
+| Layer | May depend on | Must not depend on |
+|---|---|---|
+| Domain | Nothing framework-specific | NestJS, Prisma, Redis, HTTP |
+| Application | Domain + ports | Controllers, Prisma client directly |
+| Infrastructure | Application ports | — |
+| Presentation | Application use cases | Domain rules inline |
+
+### Module ownership (initial)
+
+`auth`, `users`, `customers`, `drivers`, `orders`, `dispatch`, `pricing`, `tracking`, `ratings`, `notifications`, `finance`, `service-zones`, `media`, `admin`
+
+### Eventing
+
+Transactional **outbox** for cross-module side effects (notifications, ledger hooks). In-process events allowed inside a module only.
+
+### Repository layout
+
+Monorepo:
+
+```text
+apps/backend/     ? NestJS API + worker entrypoints
+docs/             ? authority for decisions
+client/           ? demo / interim UI (not production authority)
+```
+
+Microservices are **out of scope for v1 market launch**.
 
 ## Decision Drivers
 
 - Clean Architecture / DDD intent
-- Independent deployability of API vs workers
+- Independent scale of API vs workers
 - Testability of domain rules
 - Avoid NestJS/Prisma leakage into domain
+- Faster market delivery than multi-service day one
 
 ## Considered Options
 
-### Option A
+### Option A — Modular NestJS monolith only
 
-Modular NestJS monolith with clean boundaries
+Simpler ops; weaker isolation of background work.
 
-### Option B
+### Option B — Modular monolith + separate worker processes ? **SELECTED**
 
-Modular monolith + separate worker processes
+### Option C — Multiple deployable services from day one
 
-### Option C
-
-Multiple deployable services from day one
-
+Higher ops cost; premature for v1.
 
 ## Consequences
 
-TBD
+- One Postgres schema owned carefully by modules
+- Workers and API share domain packages
+- Clear path to extract a service later if needed
 
 ## Security Implications
 
-TBD
+- Secrets only via env/secret manager
+- No domain secrets in client
+- Admin APIs behind same authZ framework (ADR-003)
 
 ## Operational Implications
 
-TBD
+- Deploy API and worker(s) as separate processes/containers
+- Shared migration ownership in CI
 
 ## Data Implications
 
-TBD
+- Single primary database for v1
+- Redis for ephemeral state (sessions/refresh metadata, queues, presence cache)
 
 ## API Implications
 
-TBD
+- Versioned REST under `/api/v1`
+- Realtime transport decided in ADR-010
 
 ## Mobile Implications
 
-TBD
+- Clients consume OpenAPI contracts only
+- Demo `client/` localStorage is not production backend
 
 ## Dependencies
 
@@ -64,13 +108,11 @@ TBD
 
 ## Open Questions
 
-- Exact module list and ownership?
-- Shared kernel contents?
-- Eventing approach (in-process vs outbox)?
-- Monorepo layout for mobile/backend?
+- Exact Flutter vs Capacitor long-term client (product; does not block backend Phase 1)
+- Wave-2 ADRs 019/020 finalize CI/CD topology details
 
 ## Approval
 
-- Decision owner: TBD
-- Approved by: TBD
-- Date: TBD
+- Decision owner: Product Owner
+- Approved by: Yazan (CTO) — accepted backend work order
+- Date: 2026-09-22

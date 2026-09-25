@@ -61,7 +61,9 @@ Covers domain model, lifecycle, dispatch, pricing, tracking, finance, auth, API,
 
 See [`backend/ADR_INDEX.md`](backend/ADR_INDEX.md) and [`backend/adrs/`](backend/adrs/).
 
-All ADRs currently have status **PROPOSED**. None are approved decisions yet.
+Critical-path ADRs (001–009, 013, 015) have decision drafts marked **PROPOSED — READY FOR ACCEPTANCE**. None are ACCEPTED until the Product Owner signs off.
+
+Market launch sequence: [`backend/LAUNCH_PATH.md`](backend/LAUNCH_PATH.md).
 
 ### Recommended ADR dependency order
 

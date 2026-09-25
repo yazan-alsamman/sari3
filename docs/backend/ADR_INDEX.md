@@ -8,9 +8,14 @@ Index of Architecture Decision Records for Saree'e.
 
 Architecture decisions must be frozen before related implementation and numbered sequentially.
 
-All ADRs in this repository currently have status **PROPOSED**.
+| Status | Meaning |
+|---|---|
+| PROPOSED | Draft / incomplete |
+| PROPOSED â€” READY FOR ACCEPTANCE | Decision text filled; awaiting Product Owner sign-off |
+| ACCEPTED | Binding for implementation |
+| SUPERSEDED / REJECTED | Do not implement |
 
-None are approved decisions yet. Do not invent answers inside ADR bodies during Phase 0.
+**Critical path ADRs (001–009, 013, 015) are ACCEPTED** (CTO accepted backend work order, 2026-09-22).
 
 ## ADR dependency order
 
@@ -43,21 +48,21 @@ Note: ADR-008 (capacity) is intentionally ordered before ADR-007 (dispatch) beca
 
 | ADR | Title | Status | File |
 |---|---|---|---|
-| ADR-001 | System Architecture & Module Boundaries | PROPOSED | [`adrs/ADR-001-system-architecture.md`](adrs/ADR-001-system-architecture.md) |
-| ADR-002 | Authentication & Session Strategy | PROPOSED | [`adrs/ADR-002-authentication-session.md`](adrs/ADR-002-authentication-session.md) |
-| ADR-003 | Authorization & Resource Scoping | PROPOSED | [`adrs/ADR-003-authorization-resource-scoping.md`](adrs/ADR-003-authorization-resource-scoping.md) |
-| ADR-004 | Order State Machine | PROPOSED | [`adrs/ADR-004-order-state-machine.md`](adrs/ADR-004-order-state-machine.md) |
-| ADR-005 | Service Zone Model | PROPOSED | [`adrs/ADR-005-service-zone-model.md`](adrs/ADR-005-service-zone-model.md) |
-| ADR-006 | Pricing Model & Price Snapshot | PROPOSED | [`adrs/ADR-006-pricing-and-price-snapshot.md`](adrs/ADR-006-pricing-and-price-snapshot.md) |
-| ADR-007 | Dispatch Candidate Selection | PROPOSED | [`adrs/ADR-007-dispatch-selection.md`](adrs/ADR-007-dispatch-selection.md) |
-| ADR-008 | Driver Capacity Model | PROPOSED | [`adrs/ADR-008-driver-capacity.md`](adrs/ADR-008-driver-capacity.md) |
-| ADR-009 | Multi-Order Route Compatibility | PROPOSED | [`adrs/ADR-009-multi-order-route-compatibility.md`](adrs/ADR-009-multi-order-route-compatibility.md) |
+| ADR-001 | System Architecture & Module Boundaries | ACCEPTED | [`adrs/ADR-001-system-architecture.md`](adrs/ADR-001-system-architecture.md) |
+| ADR-002 | Authentication & Session Strategy | ACCEPTED | [`adrs/ADR-002-authentication-session.md`](adrs/ADR-002-authentication-session.md) |
+| ADR-003 | Authorization & Resource Scoping | ACCEPTED | [`adrs/ADR-003-authorization-resource-scoping.md`](adrs/ADR-003-authorization-resource-scoping.md) |
+| ADR-004 | Order State Machine | ACCEPTED | [`adrs/ADR-004-order-state-machine.md`](adrs/ADR-004-order-state-machine.md) |
+| ADR-005 | Service Zone Model | ACCEPTED | [`adrs/ADR-005-service-zone-model.md`](adrs/ADR-005-service-zone-model.md) |
+| ADR-006 | Pricing Model & Price Snapshot | ACCEPTED | [`adrs/ADR-006-pricing-and-price-snapshot.md`](adrs/ADR-006-pricing-and-price-snapshot.md) |
+| ADR-007 | Dispatch Candidate Selection | ACCEPTED | [`adrs/ADR-007-dispatch-selection.md`](adrs/ADR-007-dispatch-selection.md) |
+| ADR-008 | Driver Capacity Model | ACCEPTED | [`adrs/ADR-008-driver-capacity.md`](adrs/ADR-008-driver-capacity.md) |
+| ADR-009 | Multi-Order Route Compatibility | ACCEPTED | [`adrs/ADR-009-multi-order-route-compatibility.md`](adrs/ADR-009-multi-order-route-compatibility.md) |
 | ADR-010 | Live Tracking Transport | PROPOSED | [`adrs/ADR-010-live-tracking-transport.md`](adrs/ADR-010-live-tracking-transport.md) |
 | ADR-011 | Location Freshness & Retention | PROPOSED | [`adrs/ADR-011-location-freshness-retention.md`](adrs/ADR-011-location-freshness-retention.md) |
 | ADR-012 | Rating & Complaint Policy | PROPOSED | [`adrs/ADR-012-rating-complaint-policy.md`](adrs/ADR-012-rating-complaint-policy.md) |
-| ADR-013 | Financial Ledger Model | PROPOSED | [`adrs/ADR-013-financial-ledger.md`](adrs/ADR-013-financial-ledger.md) |
+| ADR-013 | Financial Ledger Model | ACCEPTED | [`adrs/ADR-013-financial-ledger.md`](adrs/ADR-013-financial-ledger.md) |
 | ADR-014 | Notification Provider Abstraction | PROPOSED | [`adrs/ADR-014-notification-provider.md`](adrs/ADR-014-notification-provider.md) |
-| ADR-015 | Media / Object Storage | PROPOSED | [`adrs/ADR-015-media-storage.md`](adrs/ADR-015-media-storage.md) |
+| ADR-015 | Media / Object Storage | ACCEPTED | [`adrs/ADR-015-media-storage.md`](adrs/ADR-015-media-storage.md) |
 | ADR-016 | Realtime Authorization | PROPOSED | [`adrs/ADR-016-realtime-authorization.md`](adrs/ADR-016-realtime-authorization.md) |
 | ADR-017 | Idempotency Strategy | PROPOSED | [`adrs/ADR-017-idempotency.md`](adrs/ADR-017-idempotency.md) |
 | ADR-018 | Data Retention & Privacy | PROPOSED | [`adrs/ADR-018-data-retention-privacy.md`](adrs/ADR-018-data-retention-privacy.md) |
@@ -69,7 +74,7 @@ Note: ADR-008 (capacity) is intentionally ordered before ADR-007 (dispatch) beca
 Each ADR contains:
 
 - Context
-- Decision (TBD until approved)
+- Decision (filled for READY FOR ACCEPTANCE rows)
 - Alternatives
 - Consequences
 - Security / operational / data / API / mobile implications
@@ -79,6 +84,7 @@ Each ADR contains:
 
 ## Related documents
 
+- [`LAUNCH_PATH.md`](LAUNCH_PATH.md)
 - [`TASKS.md`](TASKS.md)
 - [`ROADMAP.md`](ROADMAP.md)
 - [`../README.md`](../README.md)

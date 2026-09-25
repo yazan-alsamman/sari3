@@ -1,0 +1,23 @@
+// Prisma schema — Phase 1 foundation (ADR-001).
+// Domain tables for auth/orders/dispatch land in later phases after migrations are designed.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Schema bootstrap marker — proves migrations pipeline works.
+/// Real entities arrive in Phase 2+ (users, orders, etc.).
+model SchemaMeta {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("schema_meta")
+}

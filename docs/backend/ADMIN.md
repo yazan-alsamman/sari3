@@ -42,16 +42,15 @@ See [`API_ENDPOINT_CATALOG.md`](API_ENDPOINT_CATALOG.md) admin sections.
 
 ### Admin Web UI
 
-Status:
+**Prototype product decision (this repository):**
 
-**TBD — Product Decision Required**
+A demo Admin Web UI lives in `client/` at `/admin` (username/password gate; not linked from the customer/driver welcome screen). See [`DEMO_ADMIN_UI.md`](DEMO_ADMIN_UI.md).
 
-The backend exposes administrative APIs. Whether the team builds a dedicated admin web client in this repository, a separate repository, or uses a temporary ops tool is a product decision and is **not decided** here.
-
-Do not invent a full admin web architecture until that product decision is made.
+**Production** hosting (same repo vs separate vs temporary ops tool), real admin identity, and permission matrix remain subject to ACCEPTED ADR-002 / ADR-003 / ADR-020. The demo UI does not freeze those ADRs.
 
 ## Related documents
 
+- [`DEMO_ADMIN_UI.md`](DEMO_ADMIN_UI.md)
 - [`AUTH_SECURITY.md`](AUTH_SECURITY.md)
 - [`API_ENDPOINT_CATALOG.md`](API_ENDPOINT_CATALOG.md)
 - [`TRACKING.md`](TRACKING.md)

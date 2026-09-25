@@ -7,8 +7,8 @@ Accurate inventory of documentation files in this repository.
 ## Count
 
 - Root `README.md`: 1
-- Files under `docs/`: 62
-- **Total Markdown files: 63**
+- Files under `docs/`: 65
+- **Total Markdown files: 66**
 
 ## Hierarchy
 
@@ -55,15 +55,18 @@ docs/
 | `docs/backend/ARCHITECTURE.md` |
 | `docs/backend/AUTH_SECURITY.md` |
 | `docs/backend/DATABASE_SCHEMA.md` |
+| `docs/backend/DEMO_ADMIN_UI.md` |
 | `docs/backend/DEPLOYMENT.md` |
 | `docs/backend/DISPATCH.md` |
 | `docs/backend/DOMAIN_MODEL.md` |
 | `docs/backend/FINANCE.md` |
 | `docs/backend/JOBS.md` |
+| `docs/backend/LAUNCH_PATH.md` |
 | `docs/backend/MEDIA.md` |
 | `docs/backend/MULTI_ORDER_ROUTING.md` |
 | `docs/backend/NOTIFICATIONS.md` |
 | `docs/backend/OBSERVABILITY.md` |
+| `docs/backend/PHASE1_PREFLIGHT.md` |
 | `docs/backend/ORDER_LIFECYCLE.md` |
 | `docs/backend/PRICING.md` |
 | `docs/backend/RATINGS.md` |

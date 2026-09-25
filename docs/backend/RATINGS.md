@@ -28,6 +28,7 @@ Coordinate rating timing with [`ORDER_LIFECYCLE.md`](ORDER_LIFECYCLE.md) / ADR-0
 Exact thresholds: **TBD — Business Decision Required / ADR-012**.
 
 - Rating <= N (example historically mentioned <= 2; not frozen).
+- **Demo UI only:** alert when stars **≤ 2** — see [`DEMO_ADMIN_UI.md`](DEMO_ADMIN_UI.md) (not ACCEPTED ADR).
 - Multiple low ratings in a rolling period.
 - Complaint keywords/severity.
 - Repeated delay-related complaints.

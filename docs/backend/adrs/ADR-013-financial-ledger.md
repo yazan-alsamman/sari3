@@ -1,8 +1,8 @@
-ï»¿# ADR-013: Financial Ledger Model
+# ADR-013: Financial Ledger Model
 
 ## Status
 
-PROPOSED
+ACCEPTED
 
 ## Context
 
@@ -10,7 +10,46 @@ Driver earnings, platform share, incentives, penalties, and settlements are high
 
 ## Decision
 
-TBD â€” Business/Architecture Decision Required
+**Choose Option B:** Single-account append-only movements with typed entry kinds (immutable). Evolve toward double-entry later if accounting requires it.
+
+### Owner-confirmed split (v1)
+
+On each completed delivery charge `T`:
+
+| Party | Share |
+|---|---|
+| Driver base earning | **75%** of `T` |
+| Platform / company | **25%** of `T` |
+| Driver bonus | Optional **flat** amount per trip (admin per-driver config), added to driver earning |
+
+```text
+driverEarning = round(T * 0.75) + bonus
+platformShare = T - round(T * 0.75)   // ensures sum matches T before bonus
+```
+
+Bonus is a platform expense / incentive entry (separate ledger kind), not taken from customer `T` unless product later says otherwise.
+
+### Posting trigger
+
+- Ledger entries created when order reaches **`COMPLETED`** (ADR-004)
+- Never mutate; corrections via compensating entries (admin-only, audited)
+
+### Entry kinds (v1)
+
+- `delivery_driver_earning`
+- `delivery_platform_share`
+- `driver_bonus`
+- `penalty` (admin)
+- `adjustment` (admin, reason required)
+- `settlement_payout` (when settlements run)
+
+### Currency
+
+?????? ??????? ??????? (?.?.?); integer minor units (no floats).
+
+### Settlement cadence
+
+Admin-defined reports: day / week / month / year (as in ops UI intent). Automated payout rail **TBD post-v1**.
 
 ## Decision Drivers
 
@@ -18,63 +57,59 @@ TBD â€” Business/Architecture Decision Required
 - Auditability
 - Reproducible reports
 - Authorization of adjustments
+- Owner-confirmed 75/25 + bonuses
 
 ## Considered Options
 
-### Option A
+### Option A — Double-entry style ledger
 
-Double-entry style ledger
+Stronger accounting; heavier for v1.
 
-### Option B
+### Option B — Append-only movements with entry kinds ? **SELECTED**
 
-Single-account append-only movements with entry kinds
+### Option C — External accounting as system of record
 
-### Option C
-
-External accounting system as system of record
-
+Deferred.
 
 ## Consequences
 
-TBD
+- Finance module is source of truth for driver balances
+- Demo 80/20 is superseded for production by this ADR once ACCEPTED
 
 ## Security Implications
 
-TBD
+- Only admin posts penalties/adjustments
+- Drivers read own ledger only
 
 ## Operational Implications
 
-TBD
+- Day-end inventory + finance dashboards read ledger
 
 ## Data Implications
 
-TBD
+- Append-only `ledger_entries`; unique constraint on (orderId, kind) where applicable
 
 ## API Implications
 
-TBD
+- Driver earnings APIs; admin finance summaries
 
 ## Mobile Implications
 
-TBD
+- Driver day-end shows ledger-backed totals
 
 ## Dependencies
 
 - ADR-006
 - ADR-004
-- ADR-012
+- ADR-012 (penalties from ratings — wave-2)
 
 ## Open Questions
 
-- Driver earning formula?
-- Platform share formula?
-- Posting trigger state?
-- Settlement cadence?
-- Currency/rounding?
-- Adjustment permissions?
+- Settlement payout method (cash handoff vs transfer)
+- Whether bonus reduces platform share (explicitly: **no** in v1 — bonus is additive incentive)
 
 ## Approval
 
-- Decision owner: TBD
-- Approved by: TBD
-- Date: TBD
+- Decision owner: Product Owner
+- Approved by: Yazan (CTO) — accepted backend work order
+- Date: 2026-09-22

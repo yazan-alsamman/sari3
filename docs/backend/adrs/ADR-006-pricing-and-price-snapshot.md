@@ -1,8 +1,8 @@
-ï»¿# ADR-006: Pricing Model & Price Snapshot
+# ADR-006: Pricing Model & Price Snapshot
 
 ## Status
 
-PROPOSED
+ACCEPTED
 
 ## Context
 
@@ -10,7 +10,30 @@ Customers must preview and confirm price before activation. Historical orders mu
 
 ## Decision
 
-TBD â€” Business/Architecture Decision Required
+**Choose Option A:** Zone-to-zone matrix (and/or per-zone base) **+ surcharges**, with **immutable price snapshot** at confirmation.
+
+### Pricing components (v1)
+
+| Component | Rule |
+|---|---|
+| Base | Zone base and/or fixed route override `from?to` (admin-configurable) |
+| Cross-zone | Multiplier when pickup zone ? delivery zone (admin-configurable) |
+| VIP surcharge | Percentage of base (admin-configurable) |
+| Intermediate stops | Flat per stop (admin-configurable) |
+| Weight class | Optional surcharge for **heavy** (admin-configurable; may be 0 at launch) |
+| Currency | **?????? ??????? ??????? (?.?.?)** |
+
+### Snapshot
+
+On `PRICE_CONFIRMED` / submit: persist immutable JSON of all components + total + rule version id. Later admin price edits **do not** mutate historical orders.
+
+### Split timing
+
+Customer-facing total is delivery charge. Driver/platform split is **finance** (ADR-013), not shown as binding customer price breakdown unless product asks later.
+
+### Seed note
+
+Demo defaults may seed admin config; **changing seed amounts is an admin/commercial action**, not an engineering invention after acceptance.
 
 ## Decision Drivers
 
@@ -21,42 +44,41 @@ TBD â€” Business/Architecture Decision Required
 
 ## Considered Options
 
-### Option A
+### Option A — Zone-to-zone matrix + surcharges ? **SELECTED**
 
-Zone-to-zone matrix + surcharges
+### Option B — Distance-based formula + surcharges
 
-### Option B
+Deferred; poor fit for informal industrial addressing.
 
-Distance-based formula + surcharges
+### Option C — Hybrid matrix with distance adjustments
 
-### Option C
-
-Hybrid matrix with distance adjustments
-
+Optional later behind same snapshot model.
 
 ## Consequences
 
-TBD
+- Preview endpoint must use same calculator as confirm
+- Pricing module owns calculator + config
 
 ## Security Implications
 
-TBD
+- Only admin edits rules
+- Clients cannot submit arbitrary totals (server recalculates / verifies snapshot)
 
 ## Operational Implications
 
-TBD
+- Admin UI for zone bases, routes, VIP%, stops, heavy surcharge
 
 ## Data Implications
 
-TBD
+- `pricing_rules` + `price_snapshots`
 
 ## API Implications
 
-TBD
+- `POST /pricing/preview`, snapshot id attached to order
 
 ## Mobile Implications
 
-TBD
+- Show total + disclaimer before confirm
 
 ## Dependencies
 
@@ -64,16 +86,11 @@ TBD
 
 ## Open Questions
 
-- Currency?
-- Exact formula?
-- VIP pricing?
-- Weight/special handling amounts?
-- Discounts supported?
-- Rounding?
-- Platform share vs driver earning split timing with ADR-013?
+- Exact numeric seed table for production launch day (owner provides sheet)
+- Discount/coupon support deferred post-v1
 
 ## Approval
 
-- Decision owner: TBD
-- Approved by: TBD
-- Date: TBD
+- Decision owner: Product Owner
+- Approved by: Yazan (CTO) — accepted backend work order
+- Date: 2026-09-22

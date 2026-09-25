@@ -8,24 +8,22 @@ Saree'e connects automotive-parts merchants and mechanics with motorcycle delive
 
 ## Current status
 
-This repository currently contains the **Phase 0 documentation foundation**.
-
 | Area | Status |
 |---|---|
 | Product & architecture documentation | Present under [`docs/`](docs/README.md) |
-| ADR templates (ADR-001 … ADR-020) | Present — status **PROPOSED** |
-| Flutter mobile application | Not implemented yet |
-| Node.js / NestJS backend | Not implemented yet |
-| Database migrations / Prisma schema | Not created yet |
+| Critical ADRs (001–009, 013, 015) | **ACCEPTED** (CTO 2026-09-22) |
+| Demo client (`client/`) | Working prototype |
+| NestJS backend (`apps/backend`) | **Phase 1 foundation complete** (health verified) |
+| Flutter mobile application | Not implemented yet (Capacitor demo exists) |
 
-Intended stack (documented intent only until implemented):
+Launch path: [`docs/backend/LAUNCH_PATH.md`](docs/backend/LAUNCH_PATH.md)
 
-- **Mobile:** Flutter / Dart
-- **Backend:** Node.js, TypeScript, NestJS
+Stack (ACCEPTED ADR-001):
+
+- **Backend:** Node.js, TypeScript, NestJS (+ workers)
 - **Data:** PostgreSQL, Prisma
-- **Async:** Redis, BullMQ
-- **Realtime:** WebSocket / Socket.IO (final choice via ADR)
-- **Storage:** S3-compatible / MinIO (final choice via ADR)
+- **Async:** Redis, BullMQ (workers expand in later phases)
+- **Realtime / storage:** ADR-010 / ADR-015
 
 ---
 

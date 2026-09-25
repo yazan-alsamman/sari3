@@ -1,8 +1,8 @@
-ï»¿# ADR-002: Authentication & Session Strategy
+# ADR-002: Authentication & Session Strategy
 
 ## Status
 
-PROPOSED
+ACCEPTED
 
 ## Context
 
@@ -10,7 +10,27 @@ Customers, drivers, and admins must authenticate securely. Password hashing, tok
 
 ## Decision
 
-TBD â€” Business/Architecture Decision Required
+**Choose Option A:** JWT **access** tokens + **opaque rotating refresh** tokens stored server-side (revocable).
+
+### Rules
+
+| Topic | Decision |
+|---|---|
+| Password hashing | **Argon2id** |
+| Access token | Short-lived JWT (recommended default **15 minutes**) |
+| Refresh token | Opaque, hashed at rest, **rotating** on use; revoke on logout/theft |
+| Roles | `customer`, `driver`, `admin` (same user may later hold multiple profiles — v1: one primary role per account type registration) |
+| Driver work gate | Registration creates account with `approvalStatus=pending`; cannot go online until admin approves (ADR-003) |
+| Driver KYC (v1) | firstName, lastName, birthDate, ID photo (ADR-015), phone, password, vehicle, basket size, capacity |
+| Customer auth (v1) | Register with profile; later login name/phone + password (exact identifier field frozen at API design) |
+| Admin | Same token mechanism + elevated role; MFA **recommended for launch+1**, not blocking Phase 2 if ops accepts risk |
+| Verification channel | **Phone OTP** as primary verification path for production Syria market (provider TBD in ADR-014); email optional later |
+
+### Password policy (v1)
+
+- Minimum 8 characters
+- Block common passwords list
+- No plaintext storage ever
 
 ## Decision Drivers
 
@@ -21,57 +41,60 @@ TBD â€” Business/Architecture Decision Required
 
 ## Considered Options
 
-### Option A
+### Option A — JWT access + opaque rotating refresh ? **SELECTED**
 
-JWT access + opaque rotating refresh tokens
+### Option B — Fully opaque server sessions
 
-### Option B
+Heavier for mobile multi-device.
 
-Fully opaque server sessions
+### Option C — Third-party IdP
 
-### Option C
-
-Third-party identity provider
-
+Slower to market; optional later.
 
 ## Consequences
 
-TBD
+- Refresh theft mitigated by rotation + reuse detection
+- Access JWT must not carry sensitive PII beyond sub/role
 
 ## Security Implications
 
-TBD
+- HTTPS only
+- Refresh cookies/storage guidance for mobile vs web documented in AUTH_SECURITY
+- Admin credential rotation runbook required
 
 ## Operational Implications
 
-TBD
+- Redis or DB table for refresh sessions
+- Metrics on auth failures / lockouts
 
 ## Data Implications
 
-TBD
+- `users`, `sessions/refresh_tokens`, role bindings
+- Driver KYC media references via ADR-015
 
 ## API Implications
 
-TBD
+- `/auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`
+- Driver join remains pending until admin approve endpoint
 
 ## Mobile Implications
 
-TBD
+- Secure storage for refresh token
+- Silent refresh before access expiry
 
 ## Dependencies
 
 - ADR-001
+- ADR-015 (ID photo upload)
 
 ## Open Questions
 
-- Verification channel (phone OTP, email, both)?
-- Access/refresh TTLs?
-- Device session limits?
-- Admin auth same mechanism or separate?
-- Password policy?
+- Exact access/refresh TTLs final numbers (defaults above until owner tunes)
+- Device session max count (recommend **5** devices — confirm at acceptance)
+- OTP SMS provider choice (ADR-014)
 
 ## Approval
 
-- Decision owner: TBD
-- Approved by: TBD
-- Date: TBD
+- Decision owner: Product Owner
+- Approved by: Yazan (CTO) — accepted backend work order
+- Date: 2026-09-22

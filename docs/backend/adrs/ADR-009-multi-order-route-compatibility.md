@@ -1,8 +1,8 @@
-ï»¿# ADR-009: Multi-Order Route Compatibility
+# ADR-009: Multi-Order Route Compatibility
 
 ## Status
 
-PROPOSED
+ACCEPTED
 
 ## Context
 
@@ -10,7 +10,28 @@ Drivers may carry multiple compatible orders. Insertion constraints, VIP behavio
 
 ## Decision
 
-TBD â€” Business/Architecture Decision Required
+**Choose Option A for v1:** Deterministic insertion heuristic only (external optimizer behind a port later).
+
+### Owner-confirmed rules (v1)
+
+| Rule | Value |
+|---|---|
+| Max active orders per driver | **2** |
+| When second offer may be presented | (1) **= 5 minutes** remaining to first delivery ETA **or** (2) after first order reaches `COMPLETED`/`DELIVERED` handoff into next |
+| Capacity | Still must pass ADR-008 basket/weight gate |
+| Customer UX for queued second order | Status shows driver is on the way (`DRIVER_ACCEPTED` / `DRIVER_TO_PICKUP`) |
+
+### Heuristic (v1)
+
+- Prefer second pickup after first delivery completes when possible
+- If accepting while finishing first: queue as next; do not divert mid-delivery unless ETA gate says finishing imminently (=5 min)
+- VIP second orders allowed if capacity allows; do not steal from an in-progress non-VIP delivery except via the =5 min gate
+- Route provider optional; if unavailable, use zone centroids / haversine
+
+### Failure modes
+
+- If second order becomes incompatible ? cancel assignment with customer re-search (audited)
+- Provider outage ? heuristic-only mode
 
 ## Decision Drivers
 
@@ -18,45 +39,44 @@ TBD â€” Business/Architecture Decision Required
 - Capacity safety
 - Deterministic initial heuristic
 - Provider independence for business decisions
+- Match confirmed product behavior
 
 ## Considered Options
 
-### Option A
+### Option A — Deterministic insertion heuristic only ? **SELECTED (v1)**
 
-Deterministic insertion heuristic only
+### Option B — Heuristic + external optimizer later behind port
 
-### Option B
+Planned evolution path.
 
-Heuristic + external optimizer later behind port
+### Option C — External optimizer required from day one
 
-### Option C
-
-External optimizer required from day one
-
+Rejected for launch risk/cost.
 
 ## Consequences
 
-TBD
+- Tracking must support driver with active + queued order
+- Finance posts per completed order independently
 
 ## Security Implications
 
-TBD
+- Driver cannot accept third order (hard cap 2)
 
 ## Operational Implications
 
-TBD
+- Ops can see primary + queued on live map
 
 ## Data Implications
 
-TBD
+- Assignment table supports `sequence` / `queued` flag
 
 ## API Implications
 
-TBD
+- Accept-offer while busy allowed only if gate passes
 
 ## Mobile Implications
 
-TBD
+- Driver UI: queue banner + second offer sheet near delivery
 
 ## Dependencies
 
@@ -65,15 +85,11 @@ TBD
 
 ## Open Questions
 
-- Max active orders?
-- Max deviation/ETA degradation?
-- Pickup/drop-off ordering?
-- VIP mid-route behavior?
-- Provider choice and outage behavior?
-- Route recalculation triggers?
+- Exact ETA source for “=5 minutes” (maps provider vs stage heuristic) — implement behind port; provider chosen with ADR-010/maps decision
+- Max route deviation km (defer numeric until ops sheet; v1 uses time gate primarily)
 
 ## Approval
 
-- Decision owner: TBD
-- Approved by: TBD
-- Date: TBD
+- Decision owner: Product Owner
+- Approved by: Yazan (CTO) — accepted backend work order
+- Date: 2026-09-22

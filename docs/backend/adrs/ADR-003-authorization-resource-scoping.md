@@ -1,8 +1,8 @@
-ï»¿# ADR-003: Authorization & Resource Scoping
+# ADR-003: Authorization & Resource Scoping
 
 ## Status
 
-PROPOSED
+ACCEPTED
 
 ## Context
 
@@ -10,7 +10,35 @@ Every protected command needs server-side authorization and resource ownership c
 
 ## Decision
 
-TBD â€” Business/Architecture Decision Required
+**Choose Option B:** RBAC + lightweight policy attributes (hybrid).
+
+### Roles (v1)
+
+- `customer`
+- `driver`
+- `admin`
+
+### Core rules
+
+| Resource | Customer | Driver | Admin |
+|---|---|---|---|
+| Own profile | R/W | R/W | R/W |
+| Own orders | R/W (create/cancel per lifecycle) | — | R/W + override |
+| Assigned order | R (limited fields) | R/W (allowed transitions only) | R/W |
+| Other users' PII | Deny | Deny | Allow (audited) |
+| Pricing config | Deny | Deny | Allow |
+| Driver approval | Deny | Deny | Allow |
+| Finance reports | Deny | Own earnings R | Full |
+
+### Attributes used in policies
+
+- `approvalStatus` for drivers (`pending` cannot accept offers / go online)
+- Order ownership / assignment
+- Basket eligibility enforced in dispatch domain (not only UI)
+
+### Audit
+
+All admin overrides and approval decisions write an audit event (actor, target, before/after, reason).
 
 ## Decision Drivers
 
@@ -21,42 +49,39 @@ TBD â€” Business/Architecture Decision Required
 
 ## Considered Options
 
-### Option A
+### Option A — Role + permission RBAC matrix only
 
-Role + permission RBAC matrix
+### Option B — RBAC + policy attributes ? **SELECTED**
 
-### Option B
+### Option C — Hard-coded role checks per use case
 
-RBAC + policy attributes (ABAC hybrid)
-
-### Option C
-
-Hard-coded role checks per use case
-
+Rejected for maintainability.
 
 ## Consequences
 
-TBD
+- Every use case declares required permission + resource scope check
+- Controllers never trust client-supplied owner IDs without scope verification
 
 ## Security Implications
 
-TBD
+- Central guards + policy helpers
+- Deny by default
 
 ## Operational Implications
 
-TBD
+- Admin actions appear in audit log for support/compliance
 
 ## Data Implications
 
-TBD
+- Permission catalog table or code-defined enum with migrations for changes
 
 ## API Implications
 
-TBD
+- 401 unauthenticated / 403 unauthorized consistently
 
 ## Mobile Implications
 
-TBD
+- UI may hide actions; server remains authoritative
 
 ## Dependencies
 
@@ -65,13 +90,11 @@ TBD
 
 ## Open Questions
 
-- Final permission catalog?
-- Admin identity model?
-- Ownership rules per resource?
-- Cross-role support (user with multiple profiles)?
+- Full permission enum list finalized during Phase 2 API catalog pass
+- Multi-profile single login deferred post-v1
 
 ## Approval
 
-- Decision owner: TBD
-- Approved by: TBD
-- Date: TBD
+- Decision owner: Product Owner
+- Approved by: Yazan (CTO) — accepted backend work order
+- Date: 2026-09-22

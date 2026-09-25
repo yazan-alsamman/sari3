@@ -66,25 +66,23 @@ Exact semantics and whether all listed states are retained: **TBD — ADR-004**.
 
 ## Open contradiction — rating vs completion
 
-Current documentation contains an unresolved ambiguity:
+**Resolution:** [`adrs/ADR-004-order-state-machine.md`](adrs/ADR-004-order-state-machine.md) is **ACCEPTED** with **Option B** (DELIVERED → COMPLETED, then rating eligible).
 
-**Option A — rating before completed**
+`RATING_PENDING` is not a required order state for v1.
+
+**Option A — rating before completed** (rejected in ADR-004 draft)
 
 ```text
 DELIVERED -> RATING_PENDING -> COMPLETED
 ```
 
-**Option B — completed then rating**
+**Option B — completed then rating** (selected in ADR-004 draft)
 
 ```text
 DELIVERED -> COMPLETED -> (rating eligible)
 ```
 
-Product requirements and mobile docs currently describe rating after completion, while the proposed state list includes `RATING_PENDING` before `COMPLETED`.
-
-**Do not choose either option in this document.**
-
-Resolution: **TBD — ADR-004** (coordinate with [`RATINGS.md`](RATINGS.md) and [`adrs/ADR-012-rating-complaint-policy.md`](adrs/ADR-012-rating-complaint-policy.md)).
+Product requirements and mobile docs describe rating after completion.
 
 ## Transition matrix
 

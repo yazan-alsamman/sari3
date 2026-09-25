@@ -12,7 +12,7 @@ High-level phased delivery plan. Detailed checklists live in [`TASKS.md`](TASKS.
 
 ## Phase 0B — Architecture Decision Freeze
 
-Freeze via accepted ADRs:
+Freeze via accepted ADRs (see [`LAUNCH_PATH.md`](LAUNCH_PATH.md)):
 
 - domain boundaries
 - state machines
@@ -25,6 +25,7 @@ Freeze via accepted ADRs:
 - data retention
 - notification provider abstraction
 
+**Progress:** Critical ADRs 001–009, 013, 015 are drafted as **PROPOSED — READY FOR ACCEPTANCE**. Owner sign-off required before Phase 1.
 ## Phase 1 — Foundation
 
 - Repository setup.

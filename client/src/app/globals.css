@@ -1,0 +1,464 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+/**
+ * سريع حوش بلاس — elevated automotive visual tokens
+ * Logic/screens unchanged; styling + motion utilities only.
+ */
+:root,
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --navy: #07111f;
+  --navy-deep: #050d18;
+  --navy-mid: #132a4a;
+  --navy-lift: #1a3a5c;
+  --steel: #8b9cb3;
+  --steel-bright: #c5d0de;
+  --crimson: #8f1f2a;
+  --crimson-bright: #d42a3a;
+  --crimson-soft: #e85a66;
+  --electric: #2f8cff;
+  --electric-dim: #1a5fbf;
+  --emerald-accent: #12b981;
+  --background: #07111f;
+  --foreground: #e8eef6;
+  --glass: rgba(12, 24, 42, 0.72);
+  --glass-border: rgba(47, 140, 255, 0.18);
+  --shadow-glow: 0 12px 40px rgba(8, 20, 40, 0.55);
+  --surface-muted: rgba(255, 255, 255, 0.04);
+  --text-muted: #94a3b8;
+  --text-soft: #cbd5e1;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-navy: var(--navy);
+  --color-navy-mid: var(--navy-mid);
+  --color-crimson: var(--crimson);
+  --color-electric: var(--electric);
+  --font-sans: var(--font-cairo);
+  --font-display: var(--font-tajawal);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background:
+    radial-gradient(1200px 600px at 100% -10%, rgba(47, 140, 255, 0.12), transparent 55%),
+    radial-gradient(900px 500px at -10% 30%, rgba(143, 31, 42, 0.16), transparent 50%),
+    linear-gradient(165deg, var(--navy-deep) 0%, var(--navy) 45%, #0b1a2e 100%);
+  background-attachment: fixed;
+  color: var(--foreground);
+  font-family: var(--font-cairo), "Segoe UI", Tahoma, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 100dvh;
+  transition: background 0.3s ease, color 0.25s ease;
+}
+
+/**
+ * Light mode — high contrast, brand navy + crimson.
+ * Dark navy text on soft blue-mist surfaces (not washed-out white).
+ */
+html[data-theme="light"] {
+  color-scheme: light;
+  --navy: #0c1e36;
+  --navy-deep: #081628;
+  --navy-mid: #1a3558;
+  --navy-lift: #274872;
+  --steel: #3d5168;
+  --steel-bright: #0c1e36;
+  --crimson: #a61e2c;
+  --crimson-bright: #c42535;
+  --crimson-soft: #b83240;
+  --electric: #1560b8;
+  --electric-dim: #0f4a94;
+  --background: #c5d3e6;
+  --foreground: #0a1628;
+  --glass: #f2f0ec;
+  --glass-border: rgba(166, 30, 44, 0.28);
+  --shadow-glow: 0 12px 28px rgba(8, 22, 40, 0.16);
+  --surface-muted: rgba(12, 30, 54, 0.08);
+  --text-muted: #3a4d63;
+  --text-soft: #1a2d44;
+}
+
+html[data-theme="light"] body {
+  background:
+    radial-gradient(880px 480px at 100% 0%, rgba(166, 30, 44, 0.18), transparent 50%),
+    radial-gradient(720px 420px at 0% 40%, rgba(12, 30, 54, 0.2), transparent 55%),
+    linear-gradient(170deg, #b8c8dc 0%, #c9d5e6 45%, #b0c0d4 100%);
+  color: #0a1628;
+}
+
+html[data-theme="light"] .ui-glass,
+html[data-theme="light"] .ui-glass-strong {
+  background: #f4f2ee;
+  border: 1px solid rgba(12, 30, 54, 0.16);
+  box-shadow: 0 10px 28px rgba(8, 22, 40, 0.12);
+  color: #0a1628;
+}
+
+html[data-theme="light"] .ui-panel {
+  background: rgba(12, 30, 54, 0.06);
+  border-color: rgba(12, 30, 54, 0.14);
+  color: #0a1628;
+}
+
+html[data-theme="light"] .ui-input {
+  background: #fffefb;
+  border: 1px solid rgba(12, 30, 54, 0.28);
+  color: #0a1628;
+  font-weight: 500;
+}
+
+html[data-theme="light"] .ui-input::placeholder {
+  color: #5a6d82;
+  opacity: 1;
+}
+
+html[data-theme="light"] .ui-input:focus {
+  border-color: #a61e2c;
+  box-shadow: 0 0 0 3px rgba(166, 30, 44, 0.2);
+}
+
+html[data-theme="light"] .ui-btn-ghost {
+  border-color: rgba(12, 30, 54, 0.22);
+  background: #efece6;
+  color: #0c1e36;
+  font-weight: 600;
+}
+
+html[data-theme="light"] .ui-btn-primary {
+  background: linear-gradient(105deg, #c42535 0%, #8f1f2a 55%, #5c141c 100%);
+  box-shadow: 0 8px 22px rgba(166, 30, 44, 0.38);
+  color: #ffffff !important;
+}
+
+html[data-theme="light"] .ui-btn-secondary {
+  border: 1px solid #0d7a58;
+  background: linear-gradient(105deg, #d8f5ea, #b8e8d4);
+  color: #064e3b !important;
+  font-weight: 700;
+}
+
+/* Make common Tailwind text utilities readable on light */
+html[data-theme="light"] .text-white:not(header *):not(.ui-btn-primary):not(.ui-btn-secondary *) {
+  color: #0a1628 !important;
+}
+
+html[data-theme="light"] .text-slate-100,
+html[data-theme="light"] .text-slate-200,
+html[data-theme="light"] .text-slate-300 {
+  color: #142838 !important;
+}
+
+html[data-theme="light"] .text-slate-400,
+html[data-theme="light"] .text-slate-500 {
+  color: #3a4d63 !important;
+}
+
+html[data-theme="light"] .text-red-300,
+html[data-theme="light"] .text-red-200 {
+  color: #8f1f2a !important;
+}
+
+html[data-theme="light"] .text-emerald-300,
+html[data-theme="light"] .text-emerald-200,
+html[data-theme="light"] .text-emerald-100 {
+  color: #047857 !important;
+}
+
+html[data-theme="light"] .text-sky-300,
+html[data-theme="light"] .text-sky-100 {
+  color: #0369a1 !important;
+}
+
+html[data-theme="light"] .text-amber-200,
+html[data-theme="light"] .text-amber-100 {
+  color: #92400e !important;
+}
+
+/* Dark navy chrome bars stay light-on-dark */
+html[data-theme="light"] header.text-white,
+html[data-theme="light"] header.text-white .text-slate-300,
+html[data-theme="light"] header.text-white .text-slate-400,
+html[data-theme="light"] header.text-white .text-white {
+  color: #e8eef6 !important;
+}
+
+html[data-theme="light"] .border-white\/10,
+html[data-theme="light"] .border-white\/15 {
+  border-color: rgba(12, 30, 54, 0.16) !important;
+}
+
+html[data-theme="light"] .bg-white\/5,
+html[data-theme="light"] .bg-black\/20,
+html[data-theme="light"] .bg-black\/25,
+html[data-theme="light"] .bg-black\/30 {
+  background-color: rgba(12, 30, 54, 0.07) !important;
+}
+
+html[data-theme="light"] select option {
+  background: #f4f2ee;
+  color: #0a1628;
+}
+
+/**
+ * Login / welcome always stay dark brand look — ignore global light mode.
+ */
+.theme-locked-dark {
+  color-scheme: dark;
+  --foreground: #e8eef6;
+  --glass: rgba(12, 24, 42, 0.82);
+  --glass-border: rgba(47, 140, 255, 0.2);
+  --shadow-glow: 0 12px 40px rgba(8, 20, 40, 0.55);
+  color: #e8eef6;
+  background:
+    radial-gradient(900px 500px at 100% -10%, rgba(47, 140, 255, 0.14), transparent 55%),
+    radial-gradient(700px 420px at -10% 40%, rgba(143, 31, 42, 0.18), transparent 50%),
+    linear-gradient(165deg, #050d18 0%, #07111f 45%, #0b1a2e 100%);
+  min-height: 100dvh;
+}
+
+.theme-locked-dark .ui-glass,
+.theme-locked-dark .ui-glass-strong {
+  background: rgba(12, 24, 42, 0.82);
+  border-color: rgba(47, 140, 255, 0.2);
+  color: #e8eef6;
+}
+
+.theme-locked-dark .ui-input {
+  background: rgba(7, 17, 31, 0.75);
+  border-color: rgba(139, 156, 179, 0.4);
+  color: #fff;
+}
+
+.theme-locked-dark .ui-btn-ghost {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: #cbd5e1;
+}
+
+html[data-theme="light"] .theme-locked-dark .text-slate-300 {
+  color: #cbd5e1 !important;
+}
+
+html[data-theme="light"] .theme-locked-dark .text-slate-400 {
+  color: #94a3b8 !important;
+}
+
+html[data-theme="light"] .theme-locked-dark .text-slate-500 {
+  color: #64748b !important;
+}
+
+html[data-theme="light"] .theme-locked-dark .text-white {
+  color: #ffffff !important;
+}
+
+html[data-theme="light"] .theme-locked-dark .text-slate-100,
+html[data-theme="light"] .theme-locked-dark .text-slate-200 {
+  color: #e2e8f0 !important;
+}
+
+html[data-theme="light"] .theme-locked-dark .text-red-300 {
+  color: #fca5a5 !important;
+}
+
+html[data-theme="light"] .theme-locked-dark .ui-btn-primary {
+  color: #fff !important;
+}
+
+.font-display {
+  font-family: var(--font-tajawal), var(--font-cairo), sans-serif;
+}
+
+::selection {
+  background: rgba(47, 140, 255, 0.35);
+  color: #fff;
+}
+
+/* —— Surface primitives —— */
+.ui-glass {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glow);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.ui-glass-strong {
+  background: rgba(8, 18, 34, 0.82);
+  border: 1px solid rgba(197, 208, 222, 0.12);
+  box-shadow: var(--shadow-glow);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+}
+
+.ui-panel {
+  border-radius: 1.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.ui-input {
+  width: 100%;
+  border-radius: 0.9rem;
+  border: 1px solid rgba(139, 156, 179, 0.35);
+  background: rgba(7, 17, 31, 0.65);
+  padding: 0.75rem 1rem;
+  color: #fff;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ui-input:focus {
+  border-color: rgba(47, 140, 255, 0.65);
+  box-shadow: 0 0 0 3px rgba(47, 140, 255, 0.18);
+}
+
+.ui-btn-primary {
+  border-radius: 1rem;
+  background: linear-gradient(105deg, #c42333 0%, #7a1520 55%, #4a1020 100%);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 10px 28px rgba(143, 31, 42, 0.4);
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.ui-btn-primary:active {
+  transform: scale(0.98);
+}
+
+.ui-btn-secondary {
+  border-radius: 1rem;
+  border: 1px solid rgba(18, 185, 129, 0.4);
+  background: linear-gradient(105deg, rgba(18, 185, 129, 0.22), rgba(8, 40, 30, 0.55));
+  color: #d1fae5;
+  font-weight: 700;
+}
+
+.ui-btn-ghost {
+  border-radius: 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #cbd5e1;
+}
+
+.ui-app-frame {
+  width: 100%;
+  max-width: 32rem;
+  margin-inline: auto;
+}
+
+@media (min-width: 768px) {
+  .ui-app-frame {
+    max-width: 36rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .ui-app-frame-wide {
+    max-width: 72rem;
+  }
+}
+
+/* —— Automotive motion —— */
+@keyframes gear-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes tach-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes track-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(47, 140, 255, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 14px rgba(47, 140, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(47, 140, 255, 0);
+  }
+}
+
+@keyframes piston-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes shimmer-line {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+.anim-gear {
+  animation: gear-spin 14s linear infinite;
+}
+
+.anim-tach {
+  animation: tach-pulse 2.2s ease-in-out infinite;
+}
+
+.anim-track {
+  animation: track-pulse 2s ease-out infinite;
+}
+
+.anim-piston {
+  animation: piston-bob 1.6s ease-in-out infinite;
+}
+
+.ui-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(47, 140, 255, 0.18) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer-line 2.4s linear infinite;
+}
+
+.leaflet-container {
+  font-family: inherit;
+  z-index: 0;
+  border-radius: inherit;
+}
+
+.leaflet-control-attribution {
+  font-size: 9px !important;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .anim-gear,
+  .anim-tach,
+  .anim-track,
+  .anim-piston,
+  .ui-shimmer {
+    animation: none !important;
+  }
+}
