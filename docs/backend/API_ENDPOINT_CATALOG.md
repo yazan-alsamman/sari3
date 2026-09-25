@@ -10,7 +10,7 @@ Planning only. Exact DTOs and response schemas are finalized during each impleme
 
 Base path: `/api/v1`
 
-All routes require documented authentication and authorization rules (**TBD — ADR-002 / ADR-003**).
+All routes require documented authentication and authorization rules (ADR-002 / ADR-003 ACCEPTED; Phase 2 identity endpoints implemented below).
 
 ## Placeholder columns
 
@@ -30,15 +30,38 @@ Where details depend on unresolved decisions: **TBD**.
 
 ## Auth
 
-| Method | Path | Actor | Permission | Request | Response | Errors | Idempotency | Domain action |
-|---|---|---|---|---|---|---|---|---|
-| POST | `/auth/register` | Public/Customer/Driver | TBD | TBD | TBD | VALIDATION_ERROR | TBD | Register |
-| POST | `/auth/login` | Public | TBD | TBD | tokens | AUTH_UNAUTHORIZED | No | Login |
-| POST | `/auth/refresh` | Session | TBD | refresh token | tokens | AUTH_UNAUTHORIZED | TBD | Rotate refresh |
-| POST | `/auth/logout` | Authenticated | TBD | TBD | OK | TBD | TBD | Revoke session |
-| POST | `/auth/verify` | Pending user | TBD | TBD | TBD | TBD | TBD | Verify identity |
-| GET | `/auth/sessions` | Authenticated | TBD | — | session list | TBD | No | List devices |
-| DELETE | `/auth/sessions/:id` | Authenticated | own session | — | OK | TBD | TBD | Revoke device |
+| Method | Path | Actor | Permission | Request | Response | Errors | Idempotency | Domain action | Status |
+|---|---|---|---|---|---|---|---|---|---|
+| POST | `/auth/register` | Public | — | phone, password, role, profile fields | `{ user, tokens }` | VALIDATION_ERROR, CONFLICT, FORBIDDEN | No | Register | Phase 2 |
+| POST | `/auth/login` | Public | — | phone, password | `{ user, tokens }` | AUTH_UNAUTHORIZED | No | Login | Phase 2 |
+| POST | `/auth/refresh` | Session | — | refreshToken | tokens | AUTH_UNAUTHORIZED | No | Rotate refresh | Phase 2 |
+| POST | `/auth/logout` | Authenticated | — | optional refreshToken | `{ ok }` | AUTH_UNAUTHORIZED | No | Revoke session | Phase 2 |
+| GET | `/auth/me` | Authenticated | — | — | user view | AUTH_UNAUTHORIZED | No | Current user | Phase 2 |
+| POST | `/auth/verify` | Pending user | TBD | TBD | TBD | TBD | TBD | Verify identity (OTP) | Deferred ADR-014 |
+| GET | `/auth/sessions` | Authenticated | TBD | — | session list | TBD | No | List devices | Later |
+| DELETE | `/auth/sessions/:id` | Authenticated | own session | — | OK | TBD | TBD | Revoke device | Later |
+
+---
+
+## Media (ADR-015; local adapter until MinIO)
+
+| Method | Path | Actor | Notes | Status |
+|---|---|---|---|---|
+| POST | `/media/presign` | Authenticated | Returns `uploadUrl` for PUT | Phase 2 |
+| POST | `/media/presign-public` | Public | `driver_id` only (pre-registration KYC) | Phase 2 |
+| PUT | `/media/:id/upload` | Public (slot id) | Raw bytes; local stand-in for S3 PUT | Phase 2 |
+| POST | `/media/confirm` | Public (slot id) | Marks upload confirmed | Phase 2 |
+| POST | `/media/upload-public` | Public | Multipart one-shot KYC (confirm immediate) | Phase 2 |
+
+---
+
+## Admin drivers
+
+| Method | Path | Actor | Notes | Status |
+|---|---|---|---|---|
+| GET | `/admin/drivers/pending` | Admin | List KYC pending | Phase 2 |
+| POST | `/admin/drivers/:driverProfileId/approve` | Admin | Approve driver | Phase 2 |
+| POST | `/admin/drivers/:driverProfileId/reject` | Admin | Reject driver | Phase 2 |
 
 ---
 

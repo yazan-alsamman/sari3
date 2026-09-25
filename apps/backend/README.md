@@ -3,9 +3,10 @@
 Production NestJS backend for Saree'e (سريع حوش بلاس).
 
 **Authority:** ACCEPTED ADR-001 (modular NestJS monolith + workers).  
-**Phase:** 1 — Foundation (health, config, Prisma, Redis, OpenAPI).
+**Phase:** 2 — Identity (auth, sessions, driver KYC approve, local media adapter).  
+OTP verification deferred (ADR-014). MinIO swap later (ADR-015 production path).
 
-Domain APIs (auth, orders, dispatch, finance) start in Phase 2+ per [`docs/backend/LAUNCH_PATH.md`](../../docs/backend/LAUNCH_PATH.md).
+Domain APIs beyond identity (orders, dispatch, finance) start in Phase 3+ per [`docs/backend/LAUNCH_PATH.md`](../../docs/backend/LAUNCH_PATH.md).
 
 ## Prerequisites
 
@@ -50,6 +51,10 @@ src/
   config/                 env validation
   infrastructure/         Prisma, Redis adapters
   modules/health/         liveness + readiness
+  modules/auth/           register/login/refresh/logout + guards
+  modules/media/          ADR-015 local adapter
+  modules/admin/          driver KYC approve/reject
+  modules/audit/          audit log writer
   main.ts                 API entry
   worker.ts               worker stub (ADR-001)
 prisma/                   schema + migrations

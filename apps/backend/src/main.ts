@@ -2,11 +2,13 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { json, raw, urlencoded, type NextFunction, type Request, type Response } from 'express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn', 'log'],
+    bodyParser: false,
   });
 
   const config = app.get(ConfigService);
@@ -14,6 +16,16 @@ async function bootstrap() {
   const prefix = config.get<string>('API_PREFIX', 'api/v1');
   const appName = config.get<string>('APP_NAME', 'sareee-backend');
   const appVersion = config.get<string>('APP_VERSION', '0.1.0');
+
+  // ADR-015 local adapter: raw PUT body for /media/:id/upload
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.method === 'PUT' && /\/media\/[^/]+\/upload/.test(req.url)) {
+      return raw({ type: '*/*', limit: '5mb' })(req, res, next);
+    }
+    return next();
+  });
+  app.use(json({ limit: '1mb' }));
+  app.use(urlencoded({ extended: true }));
 
   app.setGlobalPrefix(prefix);
   app.useGlobalPipes(
@@ -40,10 +52,14 @@ async function bootstrap() {
   const swagger = new DocumentBuilder()
     .setTitle('Saree\'e Backend API')
     .setDescription(
-      'Production API for Saree\'e (سريع حوش بلاس). Phase 1 foundation — health & readiness only.',
+      "Production API for Saree'e (سريع حوش بلاس). Phase 2 — identity, sessions, driver KYC approval.",
     )
     .setVersion(appVersion)
     .addTag('health')
+    .addTag('auth')
+    .addTag('media')
+    .addTag('admin-drivers')
+    .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, swagger);
   SwaggerModule.setup('docs', app, document);

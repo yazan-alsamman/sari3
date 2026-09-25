@@ -50,6 +50,24 @@ Stop and update the relevant ADR/document first.
 - [x] Verify migrate + `/health/ready` locally (Postgres 16 + Redis; Docker Desktop install blocked on this machine)
 - [x] CORS for demo client origins + client Phase 1 health banner (not domain cutover)
 
+## Phase 2 — Identity & Access
+
+**IN PROGRESS** (slice: password auth + sessions + driver KYC approve; OTP deferred to ADR-014).
+
+Depends on: ADR-002, ADR-003, ADR-015 (ACCEPTED). Local media adapter until MinIO.
+
+- [x] Prisma: users, profiles, refresh sessions, media objects, audit log
+- [x] Register customer / driver / bootstrap admin
+- [x] Login + Argon2id verify
+- [x] JWT access (15m) + opaque rotating refresh (hashed)
+- [x] Logout / me
+- [x] RolesGuard + DriverApprovedGuard
+- [x] Media presign + local PUT upload + confirm (+ public KYC one-shot)
+- [x] Admin list pending / approve / reject drivers
+- [ ] Phone OTP verification (blocked on ADR-014 PROPOSED)
+- [ ] MinIO/S3 adapter swap (ADR-015 production path; local adapter preserves flow)
+- [ ] Wire demo client login/register to these APIs (optional Phase 2 follow-up)
+
 ## Later phases
 
 Use [`ROADMAP.md`](ROADMAP.md) and [`LAUNCH_PATH.md`](LAUNCH_PATH.md).

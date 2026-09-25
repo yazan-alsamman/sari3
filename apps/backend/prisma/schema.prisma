@@ -1,5 +1,4 @@
-// Prisma schema — Phase 1 foundation (ADR-001).
-// Domain tables for auth/orders/dispatch land in later phases after migrations are designed.
+// Prisma schema — Phase 2 Identity (ADR-002, ADR-003, ADR-015).
 
 generator client {
   provider = "prisma-client-js"
@@ -10,8 +9,31 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// Schema bootstrap marker — proves migrations pipeline works.
-/// Real entities arrive in Phase 2+ (users, orders, etc.).
+enum Role {
+  customer
+  driver
+  admin
+}
+
+enum DriverApprovalStatus {
+  pending
+  approved
+  rejected
+  suspended
+}
+
+enum BasketSize {
+  small
+  large
+}
+
+enum MediaPurpose {
+  driver_id
+  shop_landmark
+  delivery_proof
+}
+
+/// Schema bootstrap marker — Phase 1.
 model SchemaMeta {
   id        String   @id @default(cuid())
   key       String   @unique
@@ -20,4 +42,108 @@ model SchemaMeta {
   updatedAt DateTime @updatedAt
 
   @@map("schema_meta")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  phone         String   @unique
+  passwordHash  String
+  role          Role
+  phoneVerified Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  customerProfile CustomerProfile?
+  driverProfile   DriverProfile?
+  sessions        RefreshSession[]
+  mediaObjects    MediaObject[]
+  auditLogs       AuditLog[]       @relation("AuditActor")
+
+  @@map("users")
+}
+
+model CustomerProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  displayName String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("customer_profiles")
+}
+
+model DriverProfile {
+  id                 String               @id @default(cuid())
+  userId             String               @unique
+  firstName          String
+  lastName           String
+  birthDate          DateTime             @db.Date
+  vehicleDescription String
+  basketSize         BasketSize
+  /// Operational capacity hint (domain max active orders stays 2 per ADR-008/009).
+  capacitySlots      Int                  @default(2)
+  approvalStatus     DriverApprovalStatus @default(pending)
+  idPhotoMediaId     String?              @unique
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  idPhoto MediaObject? @relation(fields: [idPhotoMediaId], references: [id])
+
+  @@map("driver_profiles")
+}
+
+model RefreshSession {
+  id           String    @id @default(cuid())
+  userId       String
+  tokenHash    String    @unique
+  familyId     String
+  deviceLabel  String?
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?
+  createdAt    DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([familyId])
+  @@map("refresh_sessions")
+}
+
+model MediaObject {
+  id            String       @id @default(cuid())
+  ownerUserId   String?
+  purpose       MediaPurpose
+  storageKey    String
+  mime          String
+  bytes         Int
+  confirmedAt   DateTime?
+  createdAt     DateTime     @default(now())
+
+  owner  User?          @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+  driver DriverProfile?
+
+  @@index([ownerUserId, purpose])
+  @@map("media_objects")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  action      String
+  targetType  String
+  targetId    String
+  beforeJson  Json?
+  afterJson   Json?
+  reason      String?
+  createdAt   DateTime @default(now())
+
+  actor User? @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId, createdAt])
+  @@index([targetType, targetId])
+  @@map("audit_logs")
 }

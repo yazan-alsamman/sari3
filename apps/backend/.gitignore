@@ -16,6 +16,9 @@ prisma/*.db-journal
 *.log
 npm-debug.log*
 
+# Local media adapter storage (ADR-015 local stand-in)
+storage/
+
 # OS / IDE
 .DS_Store
 Thumbs.db
