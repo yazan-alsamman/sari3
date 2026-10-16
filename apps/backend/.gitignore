@@ -16,8 +16,9 @@ prisma/*.db-journal
 *.log
 npm-debug.log*
 
-# Local media adapter storage (ADR-015 local stand-in)
-storage/
+# Local media adapter storage (ADR-015 local stand-in).
+# Only the runtime upload folder at the backend root — not src/infrastructure/storage.
+/storage/
 
 # OS / IDE
 .DS_Store
