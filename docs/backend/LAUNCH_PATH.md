@@ -18,10 +18,10 @@ Phase 0B gate passed. Phase 1 NestJS/Prisma foundation is authorized.
 
 | Layer | Status |
 |---|---|
-| Product demo (`client/`) | High-quality prototype (localStorage) |
+| Product demo (`client/`) | Customer auth, zones, live pricing, and order submit call the API. Driver offers stay local until Phase 5 (ADR-011). |
 | Backend source | **Phase 1 foundation verified locally** (`apps/backend`) |
-| ADRs 001-009, 013, 015 | **ACCEPTED** (CTO 2026-09-22) |
-| ADRs 010-012, 014, 016-020 | Still PROPOSED (wave-2 freeze) |
+| ADRs 001-013, 015-017 | **ACCEPTED** (001–009, 013, 015 on 2026-09-22; 017 Option A on 2026-10-07; 010 Socket.IO and 011 Option B on 2026-10-13; 016 Option A and 012 Option A on 2026-10-13) |
+| ADRs 014, 018-020 | Still PROPOSED (wave-2 freeze) |
 | Phase 0B | **COMPLETE** — critical ADRs ACCEPTED (CTO 2026-09-22) |
 | Local runtime | API `:3001` ready (Postgres+Redis up); demo client `:3000` |
 

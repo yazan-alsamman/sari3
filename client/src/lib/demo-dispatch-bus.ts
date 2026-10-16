@@ -1,6 +1,6 @@
 /**
  * Demo-only bridge: customer order ↔ driver offer/trip.
- * Not real dispatch (ADR-007 still PROPOSED). Uses localStorage + events
+ * Local demo bus only. Production dispatch is Phase 5 on the API. Uses localStorage + events
  * so both role UIs stay in sync on the same device.
  */
 

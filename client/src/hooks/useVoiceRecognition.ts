@@ -63,6 +63,8 @@ export function useVoiceRecognition() {
   const finalRef = useRef("");
   const sessionBaseRef = useRef("");
   const wantRef = useRef(false);
+  const webLangRef = useRef("ar-SA");
+  const webRetryRef = useRef(false);
   const nativePartialHandle = useRef<{ remove: () => Promise<void> } | null>(
     null,
   );
@@ -302,7 +304,11 @@ export function useVoiceRecognition() {
           `ما انسمع صوت / ما في تطابق.${emulatorHint} الصقوا الجملة وجربوا «حوّل لطلب».`,
         );
       } else if (lower.includes("network")) {
-        setTip("مشكلة شبكة أثناء التعرف الصوتي. تأكدوا من النت أو اكتبوا الطلب.");
+        setTip(
+          navigator.onLine
+            ? "محرك تحويل الصوت لنص ما رد. اكتبوا الجملة أو اختاروا مثالاً."
+            : "ما في إنترنت الآن. اكتبوا الجملة أو اختاروا مثالاً.",
+        );
       } else if (lower.includes("permission")) {
         setTip("صلاحية المايك مرفوضة. فعّلوها من إعدادات التطبيق.");
       } else {
@@ -316,7 +322,7 @@ export function useVoiceRecognition() {
     }
   }, []);
 
-  const startWeb = useCallback(() => {
+  const startWeb = useCallback(async () => {
     const Ctor = getWebCtor();
     if (!Ctor) {
       setSupported(false);
@@ -345,7 +351,7 @@ export function useVoiceRecognition() {
     wantRef.current = true;
 
     const rec = new Ctor();
-    rec.lang = "ar-SA";
+    rec.lang = webLangRef.current || "ar-SA";
     rec.continuous = false;
     rec.interimResults = true;
     rec.maxAlternatives = 1;
@@ -391,8 +397,19 @@ export function useVoiceRecognition() {
         return;
       }
       if (ev.error === "network") {
+        if (navigator.onLine && webLangRef.current === "ar-SA") {
+          webLangRef.current = "ar";
+          webRetryRef.current = true;
+          setStatus("عم نعيد محاولة تحويل الصوت…");
+          window.setTimeout(() => {
+            void startWeb();
+          }, 250);
+          return;
+        }
         setTip(
-          "تحويل الصوت لنص يحتاج إنترنت. إذا الشبكة ضعيفة: اكتب الجملة يدوياً.",
+          navigator.onLine
+            ? "محرك تحويل الصوت لنص ما رد. اكتبوا الجملة أو اختاروا مثالاً."
+            : "ما في إنترنت الآن. اكتبوا الجملة أو اختاروا مثالاً.",
         );
         wantRef.current = false;
         setListening(false);
@@ -407,7 +424,11 @@ export function useVoiceRecognition() {
         setTip("ما في مايكروفون متاح على الجهاز.");
         wantRef.current = false;
         setListening(false);
+        return;
       }
+      setTip("ما قدرنا نكمّل التسجيل. اكتبوا الجملة أو اختاروا مثالاً.");
+      wantRef.current = false;
+      setListening(false);
     };
 
     rec.onend = () => {
@@ -428,6 +449,10 @@ export function useVoiceRecognition() {
       setTip("ما قدرنا نفتح المايك. جرّب Chrome أو تطبيق الموبايل أو اكتب الطلب.");
       wantRef.current = false;
       setListening(false);
+      if (webRetryRef.current) {
+        webRetryRef.current = false;
+        return;
+      }
     }
   }, []);
 
@@ -453,6 +478,8 @@ export function useVoiceRecognition() {
     sessionBaseRef.current = value;
     setFinalText(value);
     setInterimText("");
+    webLangRef.current = "ar-SA";
+    webRetryRef.current = false;
   }, []);
 
   const getTranscript = useCallback(() => finalRef.current.trim(), []);

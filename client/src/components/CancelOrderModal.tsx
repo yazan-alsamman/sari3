@@ -45,7 +45,7 @@ export function CancelOrderModal() {
               إلغاء الطلب
             </h2>
             <p className="mt-2 text-sm text-slate-300">
-              اختر سبب الإلغاء — السبب يُسجَّل مع الطلب (محاكاة محلية).
+              اختر سبب الإلغاء.
             </p>
 
             <div className="mt-4 space-y-2">

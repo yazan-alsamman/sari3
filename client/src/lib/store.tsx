@@ -10,11 +10,27 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { calculateDemoPrice, DEMO_DRIVER } from "./demo-pricing";
+import { DEMO_DRIVER } from "./demo-pricing";
+import {
+  apiCancelOrder,
+  apiCreateOrder,
+  apiGetOrderTracking,
+  apiListMyOrders,
+  apiLogin,
+  apiRegister,
+  apiSubmitRating,
+  clearApiSession,
+  type ServerOrder,
+} from "./backend-api";
+import {
+  isOpenServerOrder,
+  mapServerOrderStatus,
+  priceFromServer,
+} from "./server-order";
+import { zoneIdForName } from "./live-pricing";
 import {
   cancelDemoJob,
   phaseToCustomerStatus,
-  publishCustomerOrderAsOffer,
   subscribeDemoDispatch,
 } from "./demo-dispatch-bus";
 import { recordAdminRating } from "./demo-admin-ops";
@@ -42,13 +58,13 @@ interface AppState {
   goBack: () => void;
   /** @deprecated Prefer registerCustomer / loginCustomer — kept for compatibility */
   saveProfile: (profile: ClientProfile) => void;
-  registerCustomer: (profile: Omit<ClientProfile, "id" | "createdAt">) =>
-    | { ok: true }
-    | { ok: false; error: string };
+  registerCustomer: (profile: Omit<ClientProfile, "id" | "createdAt">) => Promise<
+    { ok: true } | { ok: false; error: string }
+  >;
   loginCustomer: (input: {
-    fullName: string;
+    phone: string;
     password: string;
-  }) => { ok: true } | { ok: false; error: string };
+  }) => Promise<{ ok: true } | { ok: false; error: string }>;
   logoutCustomer: () => void;
   /** Clear session and force auth screen when entering customer role */
   requireCustomerLoginScreen: () => void;
@@ -59,16 +75,25 @@ interface AppState {
   updateStop: (id: string, patch: Partial<StopPoint>) => void;
   removeStop: (id: string) => void;
   setMode: (mode: DeliveryMode) => void;
-  submitOrder: () => void;
+  submitOrder: () => Promise<boolean>;
   /** Future Driver app only — not used in customer UI. */
   markDeliveredByDriver: () => void;
-  submitRating: (stars: number, notes: string) => void;
+  submitRating: (stars: number, notes: string) => Promise<boolean>;
   closeRatingModal: () => void;
   openRatingModal: () => void;
   openCancelModal: () => void;
   closeCancelModal: () => void;
   cancelOrder: (reason: string) => void;
   startNewOrder: () => void;
+  reconcileActiveOrder: () => Promise<void>;
+  applyDriverPoint: (input: {
+    orderId: string;
+    latitude: number;
+    longitude: number;
+    accuracyMeters: number;
+    capturedAt: string;
+    freshness: string;
+  }) => void;
   applyParsedOrder: (parsed: {
     pickup: { shopName: string; area: string };
     delivery: { shopName: string; area: string };
@@ -84,6 +109,52 @@ function uid(prefix: string) {
 
 function emptyStop(kind: string): StopPoint {
   return { id: uid(kind), shopName: "", area: "", note: "" };
+}
+
+function orderFromServer(row: ServerOrder, prev: ActiveOrder | null): ActiveOrder | null {
+  const status = mapServerOrderStatus(row.status);
+  if (!status || !row.pickup || !row.delivery) return null;
+  const price = priceFromServer(row);
+  if (prev && (prev.serverOrderId === row.id || prev.id === row.id)) {
+    return {
+      ...prev,
+      status,
+      orderNumber: row.orderNumber,
+      price,
+      driverPoint: status === "searching" ? undefined : prev.driverPoint,
+      ratingEligible: row.status === "COMPLETED",
+      cancelReason: row.cancelReason ?? prev.cancelReason,
+    };
+  }
+  return {
+    id: row.id,
+    serverOrderId: row.id,
+    orderNumber: row.orderNumber,
+    status,
+    createdAt: row.createdAt,
+    price,
+    cancelReason: row.cancelReason ?? undefined,
+    ratingEligible: row.status === "COMPLETED",
+    draft: {
+      pickup: {
+        id: uid("pickup"),
+        shopName: row.pickup.shopName,
+        area: row.pickup.zoneName,
+        note: row.pickup.landmark,
+      },
+      delivery: {
+        id: uid("delivery"),
+        shopName: row.delivery.shopName,
+        area: row.delivery.zoneName,
+        note: row.delivery.landmark,
+      },
+      intermediateStops: [],
+      mode: row.mode ?? "standard",
+      specialNotes: row.specialHandlingNotes ?? "",
+      packageType: "",
+      packageSize: row.weightClass === "heavy" ? "heavy" : "light",
+    },
+  };
 }
 
 function createEmptyDraft(): OrderDraft {
@@ -142,6 +213,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const timersRef = useRef<number[]>([]);
+  const submitKeyRef = useRef("");
+  const reconcileRef = useRef<() => Promise<void>>(async () => {});
+  const profileRef = useRef<ClientProfile | null>(null);
+  const activeOrderRef = useRef<ActiveOrder | null>(null);
+  const reconcileGen = useRef(0);
+  profileRef.current = profile;
+  activeOrderRef.current = activeOrder;
 
   const clearOrderTimers = useCallback(() => {
     timersRef.current.forEach((id) => window.clearTimeout(id));
@@ -158,13 +236,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const enterAsCustomer = useCallback((next: ClientProfile) => {
+    profileRef.current = next;
     setProfile(next);
     applyProfileToDraft(setDraft, next);
     setStep("order");
+    void reconcileRef.current();
   }, []);
 
   const registerCustomer = useCallback(
-    (input: Omit<ClientProfile, "id" | "createdAt">) => {
+    async (input: Omit<ClientProfile, "id" | "createdAt">) => {
       const fullName = input.fullName.trim();
       const phone = input.phone.trim();
       const password = input.password;
@@ -181,8 +261,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           error: "أدخل رقم موبايل سوري صالح (09xxxxxxxx)",
         };
       }
-      if (password.length < 4) {
-        return { ok: false as const, error: "كلمة المرور قصيرة (4 أحرف على الأقل)" };
+      if (password.length < 8) {
+        return { ok: false as const, error: "كلمة المرور 8 أحرف على الأقل" };
       }
       if (!shopName) {
         return { ok: false as const, error: "اسم المحل الدائم مطلوب" };
@@ -191,54 +271,78 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return { ok: false as const, error: "المنطقة الصناعية مطلوبة" };
       }
 
-      const accounts = readCustomerAccounts();
-      const nameTaken = accounts.some(
-        (a) => a.fullName.trim().toLowerCase() === fullName.toLowerCase(),
-      );
-      if (nameTaken) {
+      try {
+        const user = await apiRegister({
+          phone,
+          password,
+          role: "customer",
+          displayName: fullName,
+        });
+        const account: ClientProfile = {
+          id: user.id,
+          fullName,
+          phone: user.phone,
+          password: "",
+          shopName,
+          industrialArea,
+          personalInfo,
+          createdAt: new Date().toISOString(),
+        };
+        const accounts = readCustomerAccounts().filter((a) => a.phone !== user.phone);
+        writeCustomerAccounts([...accounts, account]);
+        localStorage.setItem(CUSTOMER_SESSION_KEY, account.id!);
+        enterAsCustomer(account);
+        return { ok: true as const };
+      } catch (e) {
         return {
           ok: false as const,
-          error: "الاسم مسجّل مسبقاً — اعملوا دخول بالاسم وكلمة المرور",
+          error: e instanceof Error ? e.message : "فشل إنشاء الحساب",
         };
       }
-
-      const account: ClientProfile = {
-        id: `cus-${Date.now().toString(36)}`,
-        fullName,
-        phone,
-        password,
-        shopName,
-        industrialArea,
-        personalInfo,
-        createdAt: new Date().toISOString(),
-      };
-      writeCustomerAccounts([...accounts, account]);
-      localStorage.setItem(CUSTOMER_SESSION_KEY, account.id!);
-      enterAsCustomer(account);
-      return { ok: true as const };
     },
     [enterAsCustomer],
   );
 
   const loginCustomer = useCallback(
-    (input: { fullName: string; password: string }) => {
-      const name = input.fullName.trim();
-      const accounts = readCustomerAccounts();
-      const found = accounts.find(
-        (a) => a.fullName.trim().toLowerCase() === name.toLowerCase(),
-      );
-      if (!found || found.password !== input.password) {
-        return { ok: false as const, error: "الاسم أو كلمة المرور غلط" };
+    async (input: { phone: string; password: string }) => {
+      const phone = input.phone.trim();
+      if (!phone || input.password.length < 8) {
+        return { ok: false as const, error: "رقم الموبايل أو كلمة المرور ناقصة" };
       }
-      if (found.id) localStorage.setItem(CUSTOMER_SESSION_KEY, found.id);
-      enterAsCustomer(found);
-      return { ok: true as const };
+      try {
+        const user = await apiLogin(phone, input.password);
+        if (user.role !== "customer") {
+          return { ok: false as const, error: "هذا الحساب ليس حساب عميل" };
+        }
+        const cached = readCustomerAccounts().find((a) => a.phone === user.phone);
+        const account: ClientProfile = {
+          id: user.id,
+          fullName: cached?.fullName || "عميل",
+          phone: user.phone,
+          password: "",
+          shopName: cached?.shopName || "",
+          industrialArea: cached?.industrialArea || "",
+          personalInfo: cached?.personalInfo || "",
+          createdAt: cached?.createdAt,
+        };
+        localStorage.setItem(CUSTOMER_SESSION_KEY, user.id);
+        enterAsCustomer(account);
+        return { ok: true as const };
+      } catch (e) {
+        return {
+          ok: false as const,
+          error: e instanceof Error ? e.message : "فشل الدخول",
+        };
+      }
     },
     [enterAsCustomer],
   );
 
   const logoutCustomer = useCallback(() => {
+    reconcileGen.current += 1;
+    clearApiSession();
     localStorage.removeItem(CUSTOMER_SESSION_KEY);
+    profileRef.current = null;
     setProfile(null);
     setDraft(createEmptyDraft());
     clearOrderTimers();
@@ -250,7 +354,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [clearOrderTimers]);
 
   const requireCustomerLoginScreen = useCallback(() => {
+    reconcileGen.current += 1;
     localStorage.removeItem(CUSTOMER_SESSION_KEY);
+    profileRef.current = null;
     setProfile(null);
     clearOrderTimers();
     setActiveOrder(null);
@@ -262,16 +368,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   /** Legacy helper — registers if new, otherwise updates session profile only */
   const saveProfile = useCallback(
     (next: ClientProfile) => {
-      if (!next.password) {
-        enterAsCustomer({ ...next, password: next.password || "" });
-        return;
-      }
-      const result = registerCustomer(next);
-      if (!result.ok) {
-        enterAsCustomer(next);
-      }
+      enterAsCustomer({ ...next, password: next.password || "" });
     },
-    [enterAsCustomer, registerCustomer],
+    [enterAsCustomer],
   );
 
   const updateDraft = useCallback((patch: Partial<OrderDraft>) => {
@@ -346,62 +445,84 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const submitOrder = useCallback(() => {
+  const submitOrder = useCallback(async () => {
     clearOrderTimers();
-    const price = calculateDemoPrice({
-      pickupArea: draft.pickup.area,
-      deliveryArea: draft.delivery.area,
-      mode: draft.mode,
-      intermediateStopCount: draft.intermediateStops.length,
-    });
-
-    const order: ActiveOrder = {
-      id: uid("ord"),
-      draft: structuredClone(draft),
-      price,
-      status: "searching",
-      createdAt: new Date().toISOString(),
-    };
-
-    setActiveOrder(order);
-    setStep("tracking");
-    setShowRatingModal(false);
-    setShowCancelModal(false);
-    setLastRating(null);
-
-    publishCustomerOrderAsOffer({
-      order,
-      customerName: profile?.fullName || profile?.shopName || "عميل",
-      customerPhone: profile?.phone || "0900000000",
-    });
-
-    void pushNotify(
-      "تم إرسال الطلب",
-      "الطلب وصل لواجهة السائق — افتحوا «ابدأ كسائق» واقبلوه",
-      "success",
-    );
-    playTone("normal");
-
-    // Soft fallback only if no driver accepts within ~45s (same-device demo)
-    const fallback = window.setTimeout(() => {
-      setActiveOrder((current) => {
-        if (!current || current.id !== order.id || current.status !== "searching") {
-          return current;
-        }
-        return {
-          ...current,
-          status: "assigned",
-          driver: { ...DEMO_DRIVER },
-        };
-      });
+    const weightClass = draft.packageSize === "heavy" ? "heavy" : "light";
+    const pickupZoneId = await zoneIdForName(draft.pickup.area);
+    const deliveryZoneId = await zoneIdForName(draft.delivery.area);
+    if (!pickupZoneId || !deliveryZoneId) {
       void pushNotify(
-        "سائق تجريبي",
-        "ما في سائق قبل بالوقت — تم تعيين سائق محاكاة",
+        "ما انسجل الطلب",
+        "المنطقة مش ضمن مناطق الخدمة الحالية",
         "warn",
       );
-    }, 45000);
-    timersRef.current = [fallback];
-  }, [draft, profile, clearOrderTimers]);
+      return false;
+    }
+
+    const notes =
+      draft.specialNotes.trim() ||
+      draft.packageType.trim() ||
+      (weightClass === "heavy" ? "أوزان ثقيلة" : "أوزان خفيفة");
+    if (!submitKeyRef.current) {
+      submitKeyRef.current = crypto.randomUUID();
+    }
+
+    try {
+      const created = await apiCreateOrder(
+        {
+          pickupZoneId,
+          deliveryZoneId,
+          pickupShopName: draft.pickup.shopName.trim(),
+          deliveryShopName: draft.delivery.shopName.trim(),
+          pickupLandmark: draft.pickup.note?.trim() || draft.pickup.area.trim(),
+          deliveryLandmark:
+            draft.delivery.note?.trim() || draft.delivery.area.trim(),
+          specialHandlingNotes: notes,
+          mode: draft.mode,
+          weightClass,
+          intermediateStopCount: draft.intermediateStops.length,
+        },
+        submitKeyRef.current,
+      );
+      submitKeyRef.current = "";
+      const price = {
+        currencyLabel: created.price.currencyLabel,
+        baseAmount: created.price.baseAmount,
+        modeSurcharge: created.price.modeSurcharge,
+        stopsSurcharge:
+          created.price.stopsSurcharge + created.price.heavySurcharge,
+        total: created.price.totalAmount,
+        isDemo: false,
+        disclaimer: "حسب تسعير المناطق الحالي",
+      };
+      const order: ActiveOrder = {
+        id: created.id,
+        serverOrderId: created.id,
+        orderNumber: created.orderNumber,
+        draft: structuredClone(draft),
+        price,
+        status: "searching",
+        createdAt: created.createdAt,
+      };
+      setActiveOrder(order);
+      setStep("tracking");
+      setShowRatingModal(false);
+      setShowCancelModal(false);
+      setLastRating(null);
+      void pushNotify(
+        "تم تسجيل الطلب",
+        `${created.orderNumber} — الخدمة تبحث عن سائق`,
+        "success",
+      );
+      playTone("normal");
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "فشل تسجيل الطلب";
+      if (/idempotency/i.test(message)) submitKeyRef.current = "";
+      void pushNotify("ما انسجل الطلب", message, "warn");
+      return false;
+    }
+  }, [draft, clearOrderTimers]);
 
   // Sync status from driver trip steps (demo bus)
   useEffect(() => {
@@ -446,7 +567,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               }
             : current.driver;
 
-        if (nextStatus === "delivered") {
+        if (nextStatus === "delivered" && !current.serverOrderId) {
           window.setTimeout(() => setShowRatingModal(true), 300);
           void pushNotify(
             "تم التسليم",
@@ -492,8 +613,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [clearOrderTimers]);
 
   const submitRating = useCallback(
-    (stars: number, notes: string) => {
-      if (!activeOrder) return;
+    async (stars: number, notes: string) => {
+      if (!activeOrder) return false;
+      if (activeOrder.serverOrderId) {
+        try {
+          await apiSubmitRating(activeOrder.serverOrderId, stars, notes);
+        } catch {
+          return false;
+        }
+      }
       const submission: RatingSubmission = {
         orderId: activeOrder.id,
         stars,
@@ -502,21 +630,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
       };
       setLastRating(submission);
       setActiveOrder((current) =>
-        current ? { ...current, status: "rated" } : current,
+        current ? { ...current, status: "rated", ratingEligible: false } : current,
       );
       setShowRatingModal(false);
-      const orderNumber = activeOrder.id.replace("ord-", "S-").slice(0, 12).toUpperCase();
-      recordAdminRating({
-        orderId: activeOrder.id,
-        orderNumber,
-        stars,
-        notes,
-        driverName: activeOrder.driver?.name,
-        customerName: profile?.fullName,
-        customerPhone: profile?.phone,
-        pickupShop: activeOrder.draft.pickup.shopName,
-        deliveryShop: activeOrder.draft.delivery.shopName,
-      });
+      if (!activeOrder.serverOrderId) {
+        const orderNumber = activeOrder.id.replace("ord-", "S-").slice(0, 12).toUpperCase();
+        recordAdminRating({
+          orderId: activeOrder.id,
+          orderNumber,
+          stars,
+          notes,
+          driverName: activeOrder.driver?.name,
+          customerName: profile?.fullName,
+          customerPhone: profile?.phone,
+          pickupShop: activeOrder.draft.pickup.shopName,
+          deliveryShop: activeOrder.draft.delivery.shopName,
+        });
+      }
+      return true;
     },
     [activeOrder, profile],
   );
@@ -526,7 +657,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const openRatingModal = useCallback(() => {
-    if (activeOrder?.status === "delivered" || activeOrder?.status === "rated") {
+    if (
+      activeOrder?.ratingEligible ||
+      activeOrder?.status === "delivered" ||
+      activeOrder?.status === "rated"
+    ) {
       setShowRatingModal(true);
     }
   }, [activeOrder]);
@@ -541,23 +676,112 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const cancelOrder = useCallback(
     (reason: string) => {
-      clearOrderTimers();
-      setActiveOrder((current) => {
-        if (current) cancelDemoJob(current.id);
-        return current
-          ? {
-              ...current,
-              status: "cancelled",
-              cancelReason: reason.trim(),
-              cancelledAt: new Date().toISOString(),
-            }
-          : current;
-      });
-      setShowCancelModal(false);
-      setShowRatingModal(false);
+      const current = activeOrder;
+      if (!current) return;
+      const trimmed = reason.trim();
+      void (async () => {
+        if (current.serverOrderId) {
+          try {
+            await apiCancelOrder(current.serverOrderId, trimmed);
+          } catch (error) {
+            const message =
+              error instanceof Error ? error.message : "ما قدرنا نلغي الطلب";
+            void pushNotify("ما انلغى الطلب", message, "warn");
+            return;
+          }
+        } else {
+          cancelDemoJob(current.id);
+        }
+        clearOrderTimers();
+        setActiveOrder({
+          ...current,
+          status: "cancelled",
+          cancelReason: trimmed,
+          cancelledAt: new Date().toISOString(),
+        });
+        setShowCancelModal(false);
+        setShowRatingModal(false);
+      })();
     },
-    [clearOrderTimers],
+    [activeOrder, clearOrderTimers],
   );
+
+  const reconcileActiveOrder = useCallback(async () => {
+    if (!profileRef.current) return;
+    const gen = reconcileGen.current;
+    let rows: ServerOrder[];
+    try {
+      rows = await apiListMyOrders();
+    } catch {
+      return;
+    }
+    if (gen !== reconcileGen.current || !profileRef.current) return;
+    const open = rows.find((row) => isOpenServerOrder(row.status));
+    const current = activeOrderRef.current;
+    const target =
+      open ??
+      (current?.serverOrderId
+        ? rows.find((row) => row.id === current.serverOrderId)
+        : undefined);
+    if (!target) return;
+    let next = orderFromServer(target, current);
+    if (!next) return;
+    if (
+      next.serverOrderId &&
+      next.status !== "searching" &&
+      next.status !== "cancelled"
+    ) {
+      try {
+        const track = await apiGetOrderTracking(next.serverOrderId);
+        if (gen !== reconcileGen.current || !profileRef.current) return;
+        if (track.point) {
+          next = {
+            ...next,
+            driverPoint: {
+              latitude: track.point.latitude,
+              longitude: track.point.longitude,
+              accuracyMeters: track.point.accuracyMeters,
+              capturedAt: track.point.capturedAt,
+              freshness: track.freshness,
+            },
+          };
+        }
+      } catch {
+        /* keep prior point; REST miss must not block status reconcile */
+      }
+    }
+    if (gen !== reconcileGen.current || !profileRef.current) return;
+    setActiveOrder(next);
+    if (open && next.serverOrderId === open.id) setStep("tracking");
+  }, []);
+  const applyDriverPoint = useCallback(
+    (input: {
+      orderId: string;
+      latitude: number;
+      longitude: number;
+      accuracyMeters: number;
+      capturedAt: string;
+      freshness: string;
+    }) => {
+      setActiveOrder((current) => {
+        if (!current || current.serverOrderId !== input.orderId) return current;
+        if (current.status === "searching" || current.status === "cancelled") return current;
+        return {
+          ...current,
+          driverPoint: {
+            latitude: input.latitude,
+            longitude: input.longitude,
+            accuracyMeters: input.accuracyMeters,
+            capturedAt: input.capturedAt,
+            freshness: input.freshness,
+          },
+        };
+      });
+    },
+    [],
+  );
+
+  reconcileRef.current = reconcileActiveOrder;
 
   const startNewOrder = useCallback(() => {
     clearOrderTimers();
@@ -601,6 +825,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       closeCancelModal,
       cancelOrder,
       startNewOrder,
+      reconcileActiveOrder,
+      applyDriverPoint,
       applyParsedOrder,
     }),
     [
@@ -633,6 +859,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       closeCancelModal,
       cancelOrder,
       startNewOrder,
+      reconcileActiveOrder,
+      applyDriverPoint,
       applyParsedOrder,
     ],
   );

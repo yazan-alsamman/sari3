@@ -37,13 +37,40 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
   async isHealthy(): Promise<boolean> {
     try {
+      const status = this.client.status;
+      if (status === 'wait' || status === 'end' || status === 'close') {
+        await this.client.connect().catch((err: Error) => {
+          if (!/already connecting|already connected/i.test(err.message)) {
+            throw err;
+          }
+        });
+      }
       if (this.client.status !== 'ready') {
-        await this.client.connect();
+        await this.waitUntilReady(1500);
       }
       const pong = await this.client.ping();
       return pong === 'PONG';
     } catch {
       return false;
     }
+  }
+
+  private waitUntilReady(ms: number): Promise<void> {
+    if (this.client.status === 'ready') return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new Error('redis not ready'));
+      }, ms);
+      const onReady = () => {
+        cleanup();
+        resolve();
+      };
+      const cleanup = () => {
+        clearTimeout(timer);
+        this.client.off('ready', onReady);
+      };
+      this.client.once('ready', onReady);
+    });
   }
 }

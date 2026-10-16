@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { BrandHeader } from "./BrandHeader";
 import { VoiceOrderPanel } from "./VoiceOrderPanel";
-import { calculateDemoPrice, INDUSTRIAL_AREAS } from "@/lib/demo-pricing";
+import { INDUSTRIAL_AREAS } from "@/lib/demo-pricing";
+import { listLiveZoneNames, useLiveQuote } from "@/lib/live-pricing";
 import {
   HEAVY_PACKAGE_TYPES,
   LIGHT_PACKAGE_TYPES,
@@ -38,17 +39,21 @@ export function OrderScreen() {
   const [confirming, setConfirming] = useState(false);
   const [entryMode, setEntryMode] = useState<"voice" | "form">("voice");
   const [formHighlight, setFormHighlight] = useState(false);
+  const [areas, setAreas] = useState<string[]>([...INDUSTRIAL_AREAS]);
 
-  const price = useMemo(
-    () =>
-      calculateDemoPrice({
-        pickupArea: draft.pickup.area,
-        deliveryArea: draft.delivery.area,
-        mode: draft.mode,
-        intermediateStopCount: draft.intermediateStops.length,
-      }),
-    [draft],
-  );
+  useEffect(() => {
+    void listLiveZoneNames().then((names) => {
+      if (names && names.length > 0) setAreas(names);
+    });
+  }, []);
+
+  const price = useLiveQuote({
+    pickupArea: draft.pickup.area,
+    deliveryArea: draft.delivery.area,
+    mode: draft.mode,
+    intermediateStopCount: draft.intermediateStops.length,
+    weightClass: draft.packageSize === "heavy" ? "heavy" : "light",
+  });
 
   async function onPickupPhoto(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -87,17 +92,19 @@ export function OrderScreen() {
     return next.length === 0;
   }
 
-  function confirmAndSubmit() {
+  async function confirmAndSubmit() {
     if (!validate()) {
       setEntryMode("form");
       setFormHighlight(true);
       return;
     }
     setConfirming(true);
-    window.setTimeout(() => {
-      submitOrder();
-      setConfirming(false);
-    }, 700);
+    const ok = await submitOrder();
+    setConfirming(false);
+    if (!ok) {
+      setEntryMode("form");
+      setFormHighlight(true);
+    }
   }
 
   function onSubmit(e: FormEvent) {
@@ -193,7 +200,7 @@ export function OrderScreen() {
               <option value="" className="bg-[#0a1628]">
                 اختر المنطقة
               </option>
-              {INDUSTRIAL_AREAS.map((a) => (
+              {areas.map((a) => (
                 <option key={a} value={a} className="bg-[#0a1628]">
                   {a}
                 </option>
@@ -276,7 +283,7 @@ export function OrderScreen() {
                     <option value="" className="bg-[#0a1628]">
                       المنطقة
                     </option>
-                    {INDUSTRIAL_AREAS.map((a) => (
+                    {areas.map((a) => (
                       <option key={a} value={a} className="bg-[#0a1628]">
                         {a}
                       </option>
@@ -316,7 +323,7 @@ export function OrderScreen() {
               <option value="" className="bg-[#0a1628]">
                 اختر المنطقة
               </option>
-              {INDUSTRIAL_AREAS.map((a) => (
+              {areas.map((a) => (
                 <option key={a} value={a} className="bg-[#0a1628]">
                   {a}
                 </option>

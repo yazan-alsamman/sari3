@@ -6,7 +6,7 @@ Defines location ingestion, freshness classification, visibility, and retention 
 
 ## Status
 
-Structural specification. Thresholds and retention periods are undecided.
+Freshness thresholds and the customer point rule are ADR-011 (ACCEPTED). Who may hear a live update is ADR-016 (ACCEPTED). Sample deletion of active KYC stays ADR-018.
 
 Related ADRs:
 

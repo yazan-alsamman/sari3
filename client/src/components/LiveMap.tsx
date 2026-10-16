@@ -47,6 +47,7 @@ export default function LiveMap({
   stopAreas = [],
   stopLabels = [],
   inTransit = false,
+  driverPoint,
 }: LiveMapProps) {
   const pickup = useMemo(() => coordsForArea(pickupArea), [pickupArea]);
   const delivery = useMemo(() => coordsForArea(deliveryArea), [deliveryArea]);
@@ -70,7 +71,7 @@ export default function LiveMap({
   }, [pickup]);
 
   useEffect(() => {
-    if (!inTransit || route.length < 2) return;
+    if (driverPoint || !inTransit || route.length < 2) return;
     let frame = 0;
     const points = route;
     const id = window.setInterval(() => {
@@ -83,7 +84,7 @@ export default function LiveMap({
     }, 120);
     return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inTransit, routeKey]);
+  }, [driverPoint, inTransit, routeKey]);
 
   const pickupIcon = useMemo(() => pinIcon("#1e3a5f", "م"), []);
   const deliveryIcon = useMemo(() => pinIcon("#7f1d1d", "ت"), []);
@@ -129,9 +130,19 @@ export default function LiveMap({
             {deliveryArea}
           </Popup>
         </Marker>
-        {inTransit ? (
+        {driverPoint ? (
+          <Marker position={[driverPoint.latitude, driverPoint.longitude]} icon={driverIcon}>
+            <Popup>
+              {driverPoint.freshness === "fresh"
+                ? "موقع السائق الآن"
+                : driverPoint.freshness === "aging"
+                  ? "آخر موقع معروف، التحديث تأخر"
+                  : "الموقع قديم"}
+            </Popup>
+          </Marker>
+        ) : inTransit ? (
           <Marker position={driverPos} icon={driverIcon}>
-            <Popup>موقع السائق (محاكاة)</Popup>
+            <Popup>موقع السائق</Popup>
           </Marker>
         ) : null}
       </MapContainer>

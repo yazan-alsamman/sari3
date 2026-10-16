@@ -6,7 +6,7 @@ Specifies the categories of rules required to select eligible drivers, rank cand
 
 ## Status
 
-Specification scaffold. Concrete algorithm parameters are **not decided**.
+Phase 5 runtime uses the accepted rules in ADR-007, ADR-008, ADR-009, and ADR-011. Offer push on Socket.IO waits for ADR-016. The driver app still has a local demo bus besides `GET /drivers/me/offers`.
 
 Owning decision record: [`adrs/ADR-007-dispatch-selection.md`](adrs/ADR-007-dispatch-selection.md).
 
@@ -31,7 +31,7 @@ A driver is considered only when all applicable checks pass. Exact predicates: *
 |---|---|
 | Availability | Driver operationally available |
 | Not suspended | Account/enforcement status permits offers |
-| Location freshness | Location classified as sufficiently fresh (**TBD — ADR-011**) |
+| Location freshness | Fresh only: age ≤ 15 seconds and accuracy ≤ 30 meters (ADR-011) |
 | Capacity | Remaining capacity sufficient (**TBD — ADR-008**) |
 | Service zone | Zone rules permit the order (**TBD — ADR-005**) |
 | Current workload | Active order count / load within limits (**TBD — ADR-007 / ADR-009**) |
@@ -81,7 +81,7 @@ Exact offer state machine and side effects: **TBD — ADR-007** (coordinate with
 | Expiration behavior | TBD — ADR-007 |
 | Reassignment / retry | TBD — ADR-007 |
 | Concurrent acceptance protection | TBD — ADR-007 |
-| Idempotency for accept/reject | TBD — ADR-017 |
+| Idempotency for accept/reject | Required `Idempotency-Key` — ADR-017 |
 
 ## Concurrency
 

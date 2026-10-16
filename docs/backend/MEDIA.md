@@ -17,6 +17,8 @@ Use an object-storage abstraction such as S3-compatible storage or MinIO.
 - Validate MIME type and size.
 - Generate safe object keys.
 - Remove orphaned objects through a cleanup process.
+- v1 signed GET lifetime: 5 minutes.
+- Unconfirmed uploads older than 24 hours are deleted by an hourly sweep (API process and worker). A failed delete stays for the next sweep.
 - Store metadata in PostgreSQL.
 
 ## Lifecycle

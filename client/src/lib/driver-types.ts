@@ -70,8 +70,10 @@ export interface DriverOffer {
   packageWeightClass?: PackageWeightClass;
   pickupPhotoDataUrl?: string;
   deliveryPhotoDataUrl?: string;
-  /** When set, this offer came from the customer demo bus */
+  /** When set, this offer came from the customer demo bus or a server order id */
   linkedOrderId?: string;
+  /** Server dispatch offer id (ADR-007 / ADR-011). Absent on the local demo bus. */
+  serverOfferId?: string;
 }
 
 export interface DriverCompletedTrip {
@@ -90,5 +92,4 @@ export const DEFAULT_DRIVER_SETTINGS: DriverSettings = {
   radiusKm: 3,
 };
 
-export const DEMO_RADIUS_NOTE =
-  "قطر الطلبات إعداد تجريبي للواجهة — قواعد الإرسال الحقيقية TBD (ADR-007)";
+export const DEMO_RADIUS_NOTE = "";

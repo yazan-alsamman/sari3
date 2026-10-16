@@ -107,12 +107,9 @@ export function WelcomeScreen({
             onClick={() => setShowHowTo(true)}
             className="mt-5 w-full text-center text-sm font-semibold text-sky-300 underline-offset-2 hover:underline"
           >
-            كيف تجربوا التطبيق؟ (٣ خطوات)
+            كيف تستخدمون التطبيق؟
           </button>
 
-          <p className="mt-4 text-center text-[11px] text-slate-500">
-            نموذج واجهات للتجربة — بدون سيرفر حقيقي بعد
-          </p>
         </GlassCard>
       </div>
 
@@ -133,7 +130,7 @@ export function WelcomeScreen({
               onClick={(e) => e.stopPropagation()}
             >
               <h2 className="font-display text-xl font-bold text-sky-200">
-                كيف تجربوا التطبيق؟
+                كيف تستخدمون التطبيق؟
               </h2>
               <ol className="mt-4 space-y-3 text-sm leading-relaxed text-slate-200">
                 <li>
@@ -152,9 +149,6 @@ export function WelcomeScreen({
                   <span className="text-sky-300">/admin</span>.
                 </li>
               </ol>
-              <p className="mt-4 rounded-2xl border border-amber-700/40 bg-amber-950/40 px-3 py-2 text-xs text-amber-100">
-                العميل والسائق والأدمن لازم نفس المتصفح والجهاز بهالتجربة.
-              </p>
               <button
                 type="button"
                 className="ui-btn-primary mt-5 w-full py-3"

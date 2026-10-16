@@ -2,12 +2,33 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  DEMO_ADMIN_PASSWORD,
   DEMO_ADMIN_SESSION_KEY,
-  DEMO_ADMIN_USERNAME,
   DEMO_BAD_RATING_MAX_STARS,
   getDriverShareRate,
 } from "@/lib/demo-admin-config";
+import {
+  apiAdminLive,
+  apiApproveDriver,
+  apiFinanceReport,
+  apiListAdminOrders,
+  apiListAdminRatings,
+  apiListDrivers,
+  apiReactivateDriver,
+  apiSetTripBonus,
+  apiSuspendDriver,
+  apiUpdateDriverCapacity,
+  apiLogin,
+  apiMediaDownloadUrl,
+  apiPendingDrivers,
+  apiRejectDriver,
+  clearApiSession,
+  type PendingDriver,
+  type ServerDriver,
+  type ServerFinanceReport,
+  type ServerLiveSnapshot,
+  type ServerOrder,
+  type ServerRating,
+} from "@/lib/backend-api";
 import {
   acknowledgeAlert,
   acknowledgeAllAlerts,
@@ -78,10 +99,16 @@ function PendingJoinsPanel({
   pending,
   onApprove,
   onReject,
+  onViewId,
 }: {
-  pending: ReturnType<typeof listPendingDriverJoins>;
+  pending: Array<
+    ReturnType<typeof listPendingDriverJoins>[number] & {
+      idPhotoMediaId?: string;
+    }
+  >;
   onApprove: (id: string, name: string, phone?: string) => void;
   onReject: (id: string, name?: string) => void;
+  onViewId: (mediaId: string) => void;
 }) {
   if (pending.length === 0) return null;
   return (
@@ -117,6 +144,15 @@ function PendingJoinsPanel({
               </p>
             </div>
             <div className="flex gap-2">
+              {"idPhotoMediaId" in d && d.idPhotoMediaId ? (
+                <button
+                  type="button"
+                  onClick={() => onViewId(d.idPhotoMediaId!)}
+                  className="rounded-xl border border-slate-600 px-3 py-2 text-xs text-slate-100"
+                >
+                  عرض الهوية
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={() => onApprove(d.driverId, d.displayName, d.phone)}
@@ -144,14 +180,20 @@ function AdminLogin({ onOk }: { onOk: () => void }) {
   const [pass, setPass] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (user.trim() === DEMO_ADMIN_USERNAME && pass === DEMO_ADMIN_PASSWORD) {
+    setError(null);
+    try {
+      const account = await apiLogin(user.trim(), pass);
+      if (account.role !== "admin") {
+        setError("هذا الحساب ليس حساب أدمن");
+        return;
+      }
       sessionStorage.setItem(DEMO_ADMIN_SESSION_KEY, "1");
       onOk();
-      return;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "فشل الدخول");
     }
-    setError("يوزر أو باسورد غلط");
   }
 
   return (
@@ -177,7 +219,7 @@ function AdminLogin({ onOk }: { onOk: () => void }) {
         </p>
         <form onSubmit={submit} className="mt-8 space-y-3">
           <label className="block text-sm text-slate-300">
-            اليوزر
+            رقم الموبايل
             <input
               className="ui-input mt-1"
               value={user}
@@ -201,8 +243,7 @@ function AdminLogin({ onOk }: { onOk: () => void }) {
           </button>
         </form>
         <p className="mt-6 text-center text-[11px] text-slate-500">
-          نموذج واجهات — بدون backend حقيقي · نسب تجريبية 75%/25% · إنذار ≤{" "}
-          {DEMO_BAD_RATING_MAX_STARS} نجوم
+          دخول أدمن على السيرفر (موبايل + كلمة المرور). أول حساب عبر bootstrap secret.
         </p>
       </div>
     </section>
@@ -220,6 +261,12 @@ export function AdminShell({ onExit }: { onExit?: () => void }) {
   const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
   const [liveFilter, setLiveFilter] = useState<LiveFilter>("all");
   const [actionMsg, setActionMsg] = useState<string | null>(null);
+  const [serverPending, setServerPending] = useState<PendingDriver[]>([]);
+  const [serverOrders, setServerOrders] = useState<ServerOrder[]>([]);
+  const [serverRatings, setServerRatings] = useState<ServerRating[]>([]);
+  const [serverReport, setServerReport] = useState<ServerFinanceReport | null>(null);
+  const [serverDrivers, setServerDrivers] = useState<ServerDriver[]>([]);
+  const [serverLive, setServerLive] = useState<ServerLiveSnapshot | null>(null);
   const [financeDriverQuery, setFinanceDriverQuery] = useState("");
   const [inventoryQuery, setInventoryQuery] = useState("");
 
@@ -258,8 +305,90 @@ export function AdminShell({ onExit }: { onExit?: () => void }) {
     };
   }, [authed]);
 
+  useEffect(() => {
+    if (!authed) return;
+    let cancel = false;
+    const load = () => {
+      void apiPendingDrivers()
+        .then((rows) => {
+          if (!cancel) setServerPending(rows);
+        })
+        .catch(() => undefined);
+    };
+    load();
+    const t = window.setInterval(load, 8000);
+    return () => {
+      cancel = true;
+      window.clearInterval(t);
+    };
+  }, [authed]);
+
+  useEffect(() => {
+    if (!authed) return;
+    let cancel = false;
+    const load = () => {
+      void apiListAdminOrders()
+        .then((rows) => {
+          if (!cancel) setServerOrders(rows);
+        })
+        .catch(() => undefined);
+      void apiListAdminRatings()
+        .then((rows) => {
+          if (!cancel) setServerRatings(rows);
+        })
+        .catch(() => undefined);
+      void apiListDrivers()
+        .then((rows) => {
+          if (!cancel) setServerDrivers(rows);
+        })
+        .catch(() => undefined);
+      void apiAdminLive()
+        .then((row) => {
+          if (!cancel) setServerLive(row);
+        })
+        .catch(() => undefined);
+    };
+    load();
+    const t = window.setInterval(load, 8000);
+    return () => {
+      cancel = true;
+      window.clearInterval(t);
+    };
+  }, [authed]);
+
+  useEffect(() => {
+    if (!authed) return;
+    let cancel = false;
+    const period =
+      financePeriod === "week"
+        ? "weekly"
+        : financePeriod === "month"
+          ? "monthly"
+          : financePeriod === "year"
+            ? "yearly"
+            : "daily";
+    void apiFinanceReport(period)
+      .then((row) => {
+        if (!cancel) setServerReport(row);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancel = true;
+    };
+  }, [authed, financePeriod]);
+
   const openAlerts = ops.alerts.filter((a) => !a.acknowledged);
-  const pendingJoins = listPendingDriverJoins();
+  const pendingJoins = [
+    ...serverPending.map((d) => ({
+      driverId: d.id,
+      displayName: `${d.firstName} ${d.lastName}`.trim(),
+      phone: d.user.phone,
+      motorcycleModel: d.vehicleDescription,
+      basketSize: d.basketSize,
+      idPhotoMediaId: d.idPhoto?.confirmedAt ? d.idPhoto.id : undefined,
+    })),
+    ...listPendingDriverJoins(),
+  ];
   const pendingJoinCount = pendingJoins.length;
 
   const filteredDrivers = useMemo(() => {
@@ -291,6 +420,15 @@ export function AdminShell({ onExit }: { onExit?: () => void }) {
     () => searchAdminOrders(ops.orders ?? [], orderQuery),
     [ops.orders, orderQuery],
   );
+
+  const serverOrderResults = useMemo(() => {
+    const q = orderQuery.trim();
+    if (!q) return serverOrders;
+    return serverOrders.filter((o) => {
+      const blob = `${o.orderNumber} ${o.status} ${o.pickup?.shopName ?? ""} ${o.delivery?.shopName ?? ""}`;
+      return blob.includes(q);
+    });
+  }, [serverOrders, orderQuery]);
 
   const financeRows = useMemo(() => {
     const entries = filterLedgerByPeriod(ops.ledger ?? [], financePeriod);
@@ -344,7 +482,26 @@ export function AdminShell({ onExit }: { onExit?: () => void }) {
   }, [financeDriverFocus, ops.ledger]);
 
   const liveDrivers = useMemo(() => {
-    const list = ops.presence.filter((p) => p.approvalStatus === "approved");
+    const fromServer =
+      serverLive?.drivers
+        .filter((d) => d.point)
+        .map((d) => ({
+          driverId: d.driverProfileId,
+          displayName: d.name,
+          phone: d.phone,
+          lat: d.point!.latitude,
+          lng: d.point!.longitude,
+          availability: (d.online ? "available" : "offline") as
+            | "offline"
+            | "available"
+            | "busy",
+          approvalStatus: "approved" as const,
+          updatedAt: d.point!.capturedAt,
+        })) ?? [];
+    const list =
+      fromServer.length > 0
+        ? fromServer
+        : ops.presence.filter((p) => p.approvalStatus === "approved");
     if (liveFilter === "active") {
       return list.filter(
         (p) => p.availability === "available" || p.availability === "busy",
@@ -354,9 +511,14 @@ export function AdminShell({ onExit }: { onExit?: () => void }) {
       return list.filter((p) => p.availability === "offline");
     }
     return list;
-  }, [ops.presence, liveFilter]);
+  }, [ops.presence, liveFilter, serverLive]);
 
   const liveCounts = useMemo(() => {
+    if (serverLive) {
+      const online = serverLive.drivers.filter((d) => d.online).length;
+      const rest = serverLive.drivers.length - online;
+      return { active: online, rest, all: serverLive.drivers.length };
+    }
     const approved = ops.presence.filter((p) => p.approvalStatus === "approved");
     return {
       active: approved.filter(
@@ -365,15 +527,37 @@ export function AdminShell({ onExit }: { onExit?: () => void }) {
       rest: approved.filter((p) => p.availability === "offline").length,
       all: approved.length,
     };
-  }, [ops.presence]);
+  }, [ops.presence, serverLive]);
 
   function logout() {
+    clearApiSession();
     sessionStorage.removeItem(DEMO_ADMIN_SESSION_KEY);
     setAuthed(false);
     onExit?.();
   }
 
-  function approve(id: string, name: string, phone?: string) {
+  async function viewId(mediaId: string) {
+    try {
+      const { url } = await apiMediaDownloadUrl(mediaId);
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      setActionMsg(err instanceof Error ? err.message : "تعذر عرض الهوية");
+      window.setTimeout(() => setActionMsg(null), 4000);
+    }
+  }
+
+  async function approve(id: string, name: string, phone?: string) {
+    if (serverPending.some((d) => d.id === id)) {
+      try {
+        await apiApproveDriver(id);
+        setServerPending((rows) => rows.filter((d) => d.id !== id));
+        setActionMsg(`تمت الموافقة على «${name}» — يقدر يبلّش الشغل`);
+      } catch (err) {
+        setActionMsg(err instanceof Error ? err.message : "فشل الموافقة");
+      }
+      window.setTimeout(() => setActionMsg(null), 4000);
+      return;
+    }
     const result = setDriverApproval(id, "approved", {
       displayName: name,
       phone,
@@ -388,7 +572,18 @@ export function AdminShell({ onExit }: { onExit?: () => void }) {
     window.setTimeout(() => setActionMsg(null), 4000);
   }
 
-  function reject(id: string, name?: string) {
+  async function reject(id: string, name?: string) {
+    if (serverPending.some((d) => d.id === id)) {
+      try {
+        await apiRejectDriver(id);
+        setServerPending((rows) => rows.filter((d) => d.id !== id));
+        setActionMsg(`تم رفض «${name ?? "السائق"}»`);
+      } catch (err) {
+        setActionMsg(err instanceof Error ? err.message : "فشل الرفض");
+      }
+      window.setTimeout(() => setActionMsg(null), 4000);
+      return;
+    }
     const result = setDriverApproval(id, "rejected", { displayName: name });
     setOps(getAdminOpsSnapshot());
     setAccounts(readDriverAccounts());
@@ -511,14 +706,21 @@ export function AdminShell({ onExit }: { onExit?: () => void }) {
           pending={pendingJoins}
           onApprove={approve}
           onReject={reject}
+          onViewId={viewId}
         />
 
         {tab === "live" ? (
           <section>
             <h2 className="text-lg font-bold text-white">مواقع السائقين المباشرة</h2>
             <p className="mt-1 text-sm text-slate-400">
-              تظهر حتى لو واقفين أو باستراحة — يتحدّث من جلسة السائق (نفس المتصفح/الجهاز).
+              الخريطة تفضّل مواقع السيرفر. إذا ما في نقطة بعد، تظهر التجربة المحلية.
             </p>
+            {serverLive ? (
+              <p className="mt-2 text-sm text-slate-200">
+                أونلاين {serverLive.drivers.filter((d) => d.online).length} · طلبات{" "}
+                {serverLive.orders.length} · عروض {serverLive.offers.length}
+              </p>
+            ) : null}
             <div className="mt-3 flex flex-wrap gap-2">
               {(
                 [
@@ -609,6 +811,102 @@ export function AdminShell({ onExit }: { onExit?: () => void }) {
 
         {tab === "drivers" ? (
           <section className="space-y-4">
+            <div>
+              <h2 className="text-lg font-bold">سائقو السيرفر</h2>
+              <ul className="mt-3 space-y-2">
+                {serverDrivers.length === 0 ? (
+                  <li className="text-sm text-slate-500">ما في ملفات سائقين على السيرفر</li>
+                ) : (
+                  serverDrivers.map((d) => (
+                    <li
+                      key={d.id}
+                      className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm"
+                    >
+                      <p className="font-bold text-white">
+                        {d.firstName} {d.lastName} · {d.user.phone}
+                      </p>
+                      <p className="mt-1 text-slate-400">
+                        {d.approvalStatus} · سلة {d.basketSize === "large" ? "كبيرة" : "صغيرة"}
+                        {d.capacityNote ? ` · ${d.capacityNote}` : ""}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {d.approvalStatus === "approved" ? (
+                          <button
+                            type="button"
+                            className="rounded-lg border border-red-700/50 px-2 py-1 text-xs text-red-200"
+                            onClick={() => {
+                              void apiSuspendDriver(d.id, "تعليق من لوحة الأدمن").then(() =>
+                                setServerDrivers((rows) =>
+                                  rows.map((row) =>
+                                    row.id === d.id ? { ...row, approvalStatus: "suspended" } : row,
+                                  ),
+                                ),
+                              );
+                            }}
+                          >
+                            تعليق
+                          </button>
+                        ) : null}
+                        {d.approvalStatus === "suspended" ? (
+                          <button
+                            type="button"
+                            className="rounded-lg bg-emerald-700 px-2 py-1 text-xs font-bold"
+                            onClick={() => {
+                              void apiReactivateDriver(d.id, "إعادة تفعيل من لوحة الأدمن").then(() =>
+                                setServerDrivers((rows) =>
+                                  rows.map((row) =>
+                                    row.id === d.id ? { ...row, approvalStatus: "approved" } : row,
+                                  ),
+                                ),
+                              );
+                            }}
+                          >
+                            إعادة تفعيل
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="rounded-lg border border-white/15 px-2 py-1 text-xs"
+                          onClick={() => {
+                            const next = d.basketSize === "large" ? "small" : "large";
+                            void apiUpdateDriverCapacity(d.id, next).then(() =>
+                              setServerDrivers((rows) =>
+                                rows.map((row) => (row.id === d.id ? { ...row, basketSize: next } : row)),
+                              ),
+                            );
+                          }}
+                        >
+                          تبديل السلة
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-lg border border-amber-700/40 px-2 py-1 text-xs text-amber-100"
+                          onClick={() => {
+                            const raw = window.prompt(
+                              "مكافأة الرحلة الثابتة (ل.س.ج، 0 لإيقافها)",
+                              String(d.tripBonusAmount ?? 0),
+                            );
+                            if (raw === null) return;
+                            const amount = Math.max(0, Math.round(Number(raw)));
+                            if (!Number.isFinite(amount)) return;
+                            void apiSetTripBonus(d.id, amount).then(() =>
+                              setServerDrivers((rows) =>
+                                rows.map((row) =>
+                                  row.id === d.id ? { ...row, tripBonusAmount: amount } : row,
+                                ),
+                              ),
+                            );
+                          }}
+                        >
+                          مكافأة {d.tripBonusAmount ?? 0}
+                        </button>
+                      </div>
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+            <h2 className="text-lg font-bold">سائقو التجربة المحلية</h2>
             <input
               value={driverQuery}
               onChange={(e) => setDriverQuery(e.target.value)}
@@ -724,9 +1022,9 @@ export function AdminShell({ onExit }: { onExit?: () => void }) {
 
         {tab === "orders" ? (
           <section>
-            <h2 className="text-lg font-bold">بحث الطلبات</h2>
+            <h2 className="text-lg font-bold">طلبات السيرفر</h2>
             <p className="mt-1 text-sm text-slate-400">
-              رقم الطلب · اسم/رقم السائق · اسم المحل · اسم/هاتف العميل
+              آخر 100 طلب محفوظ على قاعدة البيانات، مع حالته وسعره.
             </p>
             <input
               value={orderQuery}
@@ -734,6 +1032,34 @@ export function AdminShell({ onExit }: { onExit?: () => void }) {
               placeholder="اكتبوا رقم الطلب أو اسم السائق أو المحل أو العميل..."
               className="mt-3 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-sm outline-none focus:border-red-700"
             />
+            <ul className="mt-4 space-y-2">
+              {serverOrderResults.length === 0 ? (
+                <li className="text-sm text-slate-500">ما في طلبات على السيرفر</li>
+              ) : (
+                serverOrderResults.map((o) => (
+                    <li
+                      key={o.id}
+                      className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-bold text-red-200">{o.orderNumber}</p>
+                        <span className="text-xs text-slate-400">{o.status}</span>
+                      </div>
+                      <p className="mt-1 text-slate-300">
+                        {o.pickup?.shopName ?? "—"} ({o.pickup?.zoneName ?? "—"}) →{" "}
+                        {o.delivery?.shopName ?? "—"} ({o.delivery?.zoneName ?? "—"})
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        {o.price.totalAmount.toLocaleString("ar-SY")} {o.price.currencyLabel}
+                      </p>
+                    </li>
+                  ))
+              )}
+            </ul>
+            <h2 className="mt-8 text-lg font-bold">بحث الطلبات المحلية</h2>
+            <p className="mt-1 text-sm text-slate-400">
+              رقم الطلب · اسم/رقم السائق · اسم المحل · اسم/هاتف العميل
+            </p>
             <ul className="mt-4 space-y-2">
               {orderResults.length === 0 ? (
                 <li>
@@ -782,10 +1108,18 @@ export function AdminShell({ onExit }: { onExit?: () => void }) {
             <div>
               <h2 className="text-lg font-bold">إدارة الحسابات والمدخول</h2>
               <p className="mt-1 text-sm text-slate-400">
-                العملة: {DEMO_CURRENCY_FULL} · سائق{" "}
-                {Math.round(getDriverShareRate() * 100)}% افتراضي · شركة{" "}
-                {Math.round((1 - getDriverShareRate()) * 100)}% (قابلة للتعديل من تبويب الأسعار)
+                دفتر السيرفر: 75٪ سائق و25٪ منصة عند اكتمال الطلب. الحصة القابلة للتعديل تحت هي للتجربة المحلية فقط.
               </p>
+              {serverReport ? (
+                <div className="mt-4 grid gap-3 sm:grid-cols-4">
+                  <Stat label="طلبات مكتملة" value={String(serverReport.orderCount)} />
+                  <Stat label="إجمالي الأجرة" value={fmtMoney(serverReport.totalCharge)} />
+                  <Stat label="حصة السائقين" value={fmtMoney(serverReport.driverEarning)} />
+                  <Stat label="حصة الشركة" value={fmtMoney(serverReport.platformShare)} />
+                </div>
+              ) : (
+                <p className="mt-3 text-sm text-slate-500">دفتر السيرفر غير متاح الآن</p>
+              )}
             </div>
 
             <div className="rounded-2xl border border-sky-800/40 bg-sky-950/20 p-4">
@@ -958,10 +1292,38 @@ export function AdminShell({ onExit }: { onExit?: () => void }) {
 
         {tab === "ratings" ? (
           <section>
-            <h2 className="text-lg font-bold">متابعة التقييمات</h2>
+            <h2 className="text-lg font-bold">تقييمات السيرفر</h2>
             <p className="mt-1 text-sm text-slate-400">
-              إنذار تلقائي عند {DEMO_BAD_RATING_MAX_STARS} نجوم أو أقل — مع رقم المحل
-              للتواصل
+              تقييم واحد بعد اكتمال الطلب. ما في إنذار تلقائي ولا إيقاف تلقائي.
+            </p>
+            <ul className="mt-4 space-y-2">
+              {serverRatings.length === 0 ? (
+                <li className="text-sm text-slate-500">ما في تقييمات على السيرفر</li>
+              ) : (
+                serverRatings.map((r) => (
+                  <li
+                    key={r.id}
+                    className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm"
+                  >
+                    <div className="flex justify-between gap-2">
+                      <p className="font-bold text-white">
+                        {"★".repeat(r.stars)}
+                        {"☆".repeat(5 - r.stars)}
+                      </p>
+                      <span className="text-xs text-slate-400">{r.orderId.slice(0, 8)}</span>
+                    </div>
+                    {r.notes ? (
+                      <p className="mt-2 rounded-xl bg-black/30 px-3 py-2 text-xs text-slate-200">
+                        {r.notes}
+                      </p>
+                    ) : null}
+                  </li>
+                ))
+              )}
+            </ul>
+            <h2 className="mt-8 text-lg font-bold">تقييمات التجربة المحلية</h2>
+            <p className="mt-1 text-sm text-slate-400">
+              تمييز محلي عند {DEMO_BAD_RATING_MAX_STARS} نجوم أو أقل — ما بينزل على السيرفر
             </p>
             <ul className="mt-4 space-y-2">
               {ops.ratings.length === 0 ? (

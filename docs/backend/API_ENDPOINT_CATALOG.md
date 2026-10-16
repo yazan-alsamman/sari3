@@ -43,15 +43,19 @@ Where details depend on unresolved decisions: **TBD**.
 
 ---
 
-## Media (ADR-015; local adapter until MinIO)
+## Media (ADR-015)
+
+Prefixes: `kyc/`, `orders/`, `proofs/`. S3/MinIO when it is reachable; local disk otherwise. Images jpeg/png/webp, max 5 MB. Signed GET lasts 5 minutes. Unconfirmed uploads older than 24 hours are deleted by an hourly sweep. KYC download is admin-only and writes `media.kyc.view`. Shop and proof photos: owner or admin until orders exist.
 
 | Method | Path | Actor | Notes | Status |
 |---|---|---|---|---|
-| POST | `/media/presign` | Authenticated | Returns `uploadUrl` for PUT | Phase 2 |
+| POST | `/media/presign` | Authenticated, purpose scoped by role | Returns `uploadUrl` for PUT | Phase 2 |
 | POST | `/media/presign-public` | Public | `driver_id` only (pre-registration KYC) | Phase 2 |
-| PUT | `/media/:id/upload` | Public (slot id) | Raw bytes; local stand-in for S3 PUT | Phase 2 |
-| POST | `/media/confirm` | Public (slot id) | Marks upload confirmed | Phase 2 |
+| PUT | `/media/:id/upload` | Slot id | Raw bytes; local stand-in for S3 PUT | Phase 2 |
+| POST | `/media/confirm` | Owner, admin, or pre-registration KYC slot | Marks upload confirmed | Phase 2 |
 | POST | `/media/upload-public` | Public | Multipart one-shot KYC (confirm immediate) | Phase 2 |
+| GET | `/media/:id/url` | Admin for KYC; owner or admin otherwise | `{ url, expiresIn }` 5 minutes. KYC view audited | ADR-015 |
+| GET | `/media/:id/content` | Signed `exp` + `sig` | Local-adapter bytes. No permanent public URL | ADR-015 |
 
 ---
 
@@ -76,16 +80,15 @@ Where details depend on unresolved decisions: **TBD**.
 
 ## Orders (customer)
 
+Price preview stays `POST /pricing/preview` (not idempotent). Submit recalculates the snapshot on the server. Header `Idempotency-Key` is required on submit (8–128 characters, 24h replay, ADR-017). Customer cancel is allowed through `DRIVER_TO_PICKUP` with no fee until a commercial sheet is signed (ADR-004).
+
 | Method | Path | Actor | Permission | Idempotency | Domain action |
 |---|---|---|---|---|---|
-| POST | `/orders/price-preview` | Customer | create-order capability TBD | TBD | Preview price |
-| POST | `/orders` | Customer | create-order | Required (key) | Create/confirm order |
+| POST | `/orders` | Customer | own create | Required | Create snapshot, land on `SEARCHING_DRIVER` |
 | GET | `/orders` | Customer | own orders | No | List orders |
-| GET | `/orders/:orderId` | Customer | owner scope | No | Get order |
-| POST | `/orders/:orderId/cancel` | Customer | owner + cancel policy TBD ADR-004 | TBD | Cancel |
-| GET | `/orders/:orderId/status-history` | Customer | owner scope | No | History |
-
-Request/response bodies: **TBD** until ADR-004 / ADR-006.
+| GET | `/orders/:orderId` | Customer, assigned driver, or admin | scope | No | Get order |
+| POST | `/orders/:orderId/cancel` | Customer | owner, early states | No | Cancel |
+| GET | `/orders/:orderId/status-history` | Customer, assigned driver, or admin | scope | No | History |
 
 ---
 
@@ -111,17 +114,21 @@ Request/response bodies: **TBD** until ADR-004 / ADR-006.
 
 Offer timeout/reassignment are system jobs — see [`JOBS.md`](JOBS.md) / ADR-007.
 
+Implemented in Phase 5: `POST /drivers/me/availability`, `POST /drivers/me/location`, `GET /drivers/me/offers`, accept, reject, and `GET /orders/:orderId/tracking`. Earnings and the ledger are implemented in Phase 8. `GET/PATCH /drivers/me` and active-orders are not implemented.
+
 ---
 
 ## Order execution (driver)
 
 | Method | Path | Actor | Permission | Domain action |
 |---|---|---|---|---|
-| POST | `/orders/:orderId/pickup` | Driver | assigned driver | Confirm pickup |
-| POST | `/orders/:orderId/deliver` | Driver | assigned driver | Confirm delivery |
-| POST | `/orders/:orderId/in-transit` | Driver | assigned driver | Optional if state retained — TBD ADR-004 |
+| POST | `/orders/:orderId/start-to-pickup` | Driver | assigned + approved | `DRIVER_ACCEPTED` → `DRIVER_TO_PICKUP` |
+| POST | `/orders/:orderId/pickup` | Driver | assigned + approved | `DRIVER_TO_PICKUP` → `PICKED_UP` |
+| POST | `/orders/:orderId/in-transit` | Driver | assigned + approved | `PICKED_UP` → `IN_TRANSIT` |
+| POST | `/orders/:orderId/deliver` | Driver | assigned + approved | `IN_TRANSIT` → `DELIVERED`. Optional `proofMediaId` |
+| POST | `/orders/:orderId/complete` | Driver | assigned + approved | `DELIVERED` → `COMPLETED` |
 
-Checkpoint/proof payload: **TBD — ADR-004 / ADR-015**.
+Assignment itself is dispatch (Phase 5). These commands reject an order with no assigned driver. Illegal transitions return `409` `ORDER_INVALID_STATE`.
 
 ---
 
@@ -145,7 +152,7 @@ Realtime events are complementary; REST is authoritative.
 | POST | `/orders/:orderId/complaints` | Customer | owner | Create complaint |
 | GET | `/complaints/:id` | Customer/Admin | scoped | Get complaint |
 
-Eligibility/uniqueness: ADR-012 / ADR-004.
+Eligibility/uniqueness: ADR-012 Option A. Rating only after `COMPLETED`, one per order, no customer edit. Note max 500 characters. `PATCH /admin/complaints/:id` marks `investigated` or `dismissed` (dismiss requires a reason) and is audited. No alert threshold and no automatic suspension.
 
 ---
 
@@ -170,13 +177,7 @@ Seed amounts = demo defaults until commercial sheet signed (LAUNCH_PATH). Unknow
 
 ## Media
 
-| Method | Path | Actor | Permission | Domain action |
-|---|---|---|---|---|
-| POST | `/media/upload-url` | Customer/Driver/Admin | scoped upload | Get signed upload |
-| POST | `/media/:mediaId/attach` | scoped actor | attach to domain object | Attach media |
-| DELETE | `/media/:mediaId` | scoped actor | delete policy TBD | Detach/delete |
-
-Limits: **TBD — ADR-015**.
+Implemented routes are in **Media (ADR-015)** above. There is no public delete of KYC while the driver account is active (ADR-018 is still PROPOSED).
 
 ---
 
@@ -185,13 +186,16 @@ Limits: **TBD — ADR-015**.
 | Method | Path | Actor | Permission | Domain action |
 |---|---|---|---|---|
 | GET | `/drivers/me/ledger` | Driver | own ledger | List entries |
-| GET | `/admin/drivers/:driverId/ledger` | Admin | finance.read | Admin ledger view |
-| POST | `/admin/drivers/:driverId/adjustment` | Admin | finance.adjust | Post adjustment |
+| GET | `/drivers/me/earnings` | Driver | own finance read | Balance and today's earning |
+| GET | `/admin/drivers/:driverProfileId/ledger` | Admin | finance.read | Admin ledger view |
+| PATCH | `/admin/drivers/:driverProfileId/trip-bonus` | Admin | finance.adjust | Set the flat per-trip bonus |
+| POST | `/admin/drivers/:driverProfileId/adjustment` | Admin | finance.adjust | Post `penalty` or `adjustment`. Requires `Idempotency-Key` |
 | GET | `/admin/finance/reports/daily` | Admin | finance.report | Daily report |
 | GET | `/admin/finance/reports/weekly` | Admin | finance.report | Weekly report |
 | GET | `/admin/finance/reports/monthly` | Admin | finance.report | Monthly report |
+| GET | `/admin/finance/reports/yearly` | Admin | finance.report | Yearly report |
 
-Amounts/formulas: **TBD — ADR-013**.
+Amounts follow ADR-013: driver base `round(T * 0.75)`, platform the remainder, optional flat bonus. Posted at `COMPLETED`. `settlement_payout` exists on the ledger enum and is not posted until the payout method is chosen. Offer payloads include `earnings.driverEarning` for the same split.
 
 ---
 
@@ -199,17 +203,17 @@ Amounts/formulas: **TBD — ADR-013**.
 
 | Method | Path | Actor | Permission | Domain action |
 |---|---|---|---|---|
-| GET | `/admin/orders` | Admin | orders.read | Search/filter orders |
+| GET | `/admin/orders` | Admin | orders.read | Recent orders. Optional `status` and exact `orderNumber` |
 | GET | `/admin/orders/:orderId` | Admin | orders.read | Order detail |
-| POST | `/admin/orders/:orderId/override` | Admin | orders.override | Lifecycle override — TBD ADR-004 |
+| POST | `/admin/orders/:orderId/override` | Admin | orders.override | Lifecycle override is allowed by ADR-004 with audit. The target-state catalog is still unspecified, so the command is not implemented. |
 | GET | `/admin/drivers` | Admin | drivers.read | List drivers |
-| POST | `/admin/drivers/:driverId/suspend` | Admin | drivers.suspend | Suspend |
-| POST | `/admin/drivers/:driverId/reactivate` | Admin | drivers.reactivate | Reactivate |
-| PATCH | `/admin/drivers/:driverId/capacity` | Admin | drivers.capacity | Capacity update — ADR-008 |
-| GET | `/admin/live` | Admin | live.read | Live ops snapshot |
+| POST | `/admin/drivers/:driverProfileId/suspend` | Admin | drivers.suspend | Approved → suspended. Reason required. Open offers are withdrawn. |
+| POST | `/admin/drivers/:driverProfileId/reactivate` | Admin | drivers.reactivate | Suspended → approved. Reason required. Does not set the driver online. |
+| PATCH | `/admin/drivers/:driverProfileId/capacity` | Admin | drivers.capacity | `basketSize` and/or `capacityNote`. Does not change the max of 2 active orders. |
+| GET | `/admin/live` | Admin | live.read | Approved drivers with freshness, active orders, open offers |
 | GET | `/admin/ratings` | Admin | ratings.read | Ratings queue |
-| GET | `/admin/alerts` | Admin | alerts.read | Admin alerts |
-| POST | `/admin/alerts/:id/ack` | Admin | alerts.write | Acknowledge alert |
+| GET | `/admin/alerts` | Admin | alerts.read | Not implemented. ADR-012 has no alert threshold. |
+| POST | `/admin/alerts/:id/ack` | Admin | alerts.write | Not implemented. ADR-012 has no alert threshold. |
 
 ---
 
@@ -226,10 +230,24 @@ Provider details: **TBD — ADR-014**.
 
 ---
 
+## Realtime
+
+ADR-010 ACCEPTED. Socket.IO on the API process at path `/socket.io`. Not under `/api/v1`.
+
+| Step | Actor | Auth | Result |
+|---|---|---|---|
+| Connect | Authenticated | JWT access token in `auth.token` or `Authorization: Bearer` | Connection stays open. `socket.data.principal` is `{ userId, role }` |
+| Connect | Anonymous or invalid token | — | Disconnect |
+
+No domain events and no rooms. Those wait for ADR-016. REST stays authoritative. Reconnect reads existing REST.
+
+---
+
 ## Related documents
 
 - [`API_GUIDELINES.md`](API_GUIDELINES.md)
 - [`AUTH_SECURITY.md`](AUTH_SECURITY.md)
 - [`ORDER_LIFECYCLE.md`](ORDER_LIFECYCLE.md)
 - [`DISPATCH.md`](DISPATCH.md)
+- [`REALTIME.md`](REALTIME.md)
 - [`ADMIN.md`](ADMIN.md)

@@ -11,6 +11,11 @@ export type AppEnv = {
   JWT_ACCESS_SECRET: string;
   BOOTSTRAP_ADMIN_SECRET: string;
   MEDIA_LOCAL_ROOT: string;
+  S3_ENDPOINT: string;
+  S3_BUCKET: string;
+  S3_ACCESS_KEY: string;
+  S3_SECRET_KEY: string;
+  S3_REGION: string;
 };
 
 export function validateEnv(config: Record<string, unknown>): AppEnv {
@@ -44,5 +49,10 @@ export function validateEnv(config: Record<string, unknown>): AppEnv {
     JWT_ACCESS_SECRET: jwt,
     BOOTSTRAP_ADMIN_SECRET: String(config.BOOTSTRAP_ADMIN_SECRET ?? ''),
     MEDIA_LOCAL_ROOT: String(config.MEDIA_LOCAL_ROOT ?? ''),
+    S3_ENDPOINT: String(config.S3_ENDPOINT ?? ''),
+    S3_BUCKET: String(config.S3_BUCKET ?? 'sareee-media'),
+    S3_ACCESS_KEY: String(config.S3_ACCESS_KEY ?? ''),
+    S3_SECRET_KEY: String(config.S3_SECRET_KEY ?? ''),
+    S3_REGION: String(config.S3_REGION ?? 'us-east-1'),
   };
 }

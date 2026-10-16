@@ -16,18 +16,23 @@ export function RatingModal() {
   const [hover, setHover] = useState(0);
   const [notes, setNotes] = useState("");
 
+  const [error, setError] = useState("");
+
   useEffect(() => {
     if (showRatingModal) {
       setStars(0);
       setHover(0);
       setNotes("");
+      setError("");
     }
   }, [showRatingModal, activeOrder?.id]);
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (stars < 1) return;
-    submitRating(stars, notes.trim());
+    void submitRating(stars, notes.trim()).then((ok) => {
+      if (!ok) setError("ما انحفظ التقييم. الطلب لازم يكون مكتملاً، والتقييم مرة واحدة.");
+    });
   }
 
   const driverName = activeOrder?.driver?.name ?? "السائق";
@@ -87,11 +92,13 @@ export function RatingModal() {
 
             <textarea
               rows={4}
+              maxLength={500}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder={`مثال: تأخر في الوصول كذا دقيقة… أو شكراً ${driverName}`}
               className="ui-input text-sm"
             />
+            {error ? <p className="text-xs text-red-300">{error}</p> : null}
 
             <div className="mt-4 flex gap-2">
               <button
@@ -109,9 +116,6 @@ export function RatingModal() {
                 إرسال التقييم
               </button>
             </div>
-            <p className="mt-3 text-center text-[11px] text-slate-500">
-              التقييم بعد الاستلام يُرسل محلياً — الربط مع الإدارة لاحقاً
-            </p>
           </motion.form>
         </motion.div>
       ) : null}

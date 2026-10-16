@@ -1,5 +1,5 @@
 import type { DeliveryMode, DemoPriceBreakdown } from "./types";
-import { DEMO_CURRENCY_FULL, DEMO_CURRENCY_LABEL } from "./demo-currency";
+import { DEMO_CURRENCY_FULL } from "./demo-currency";
 import {
   getPricingConfig,
   routeKey,
@@ -10,8 +10,7 @@ import { INDUSTRIAL_AREAS } from "./demo-pricing-areas";
  * DEMO pricing only — NOT authoritative.
  * Amounts come from Admin-editable local config (still ADR-006 PROPOSED).
  */
-export const DEMO_PRICING_DISCLAIMER =
-  `معاينة سعر تجريبية بـ${DEMO_CURRENCY_LABEL} — قابلة للتعديل من لوحة الأدمن (ADR-006 غير معتمد بعد)`;
+export const DEMO_PRICING_DISCLAIMER = "حسب تسعير المناطق الحالي";
 
 function normalizeArea(area: string, zoneBases: Record<string, number>): string {
   const trimmed = area.trim();

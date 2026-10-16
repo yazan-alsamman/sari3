@@ -6,4 +6,5 @@ export interface LiveMapProps {
   stopAreas?: string[];
   stopLabels?: string[];
   inTransit?: boolean;
+  driverPoint?: { latitude: number; longitude: number; freshness: string };
 }

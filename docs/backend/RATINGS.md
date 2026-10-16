@@ -6,7 +6,7 @@ Defines rating eligibility principles, complaint handling categories, and open p
 
 ## Status
 
-Baseline rules preserved; thresholds and correction policy undecided.
+ADR-012 Option A is ACCEPTED (2026-10-13). One rating after `COMPLETED`, no customer edit. Complaints have no severity scale. Alert thresholds and suspension are still open.
 
 Owning decision record: [`adrs/ADR-012-rating-complaint-policy.md`](adrs/ADR-012-rating-complaint-policy.md).
 

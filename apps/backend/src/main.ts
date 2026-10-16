@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { json, raw, urlencoded, type NextFunction, type Request, type Response } from 'express';
 import { AppModule } from './app.module';
+import { RealtimeIoAdapter } from './modules/realtime/realtime-io.adapter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {

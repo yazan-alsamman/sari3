@@ -27,15 +27,16 @@ Driver location is used for:
 - Handle denied/restricted permissions gracefully.
 - Communicate when location is being shared.
 
-## Open thresholds (do not invent)
+## Thresholds (ADR-011 ACCEPTED)
 
-| Parameter | Status |
+| Parameter | Value |
 |---|---|
-| Sample time interval | **TBD — ADR-011** |
-| Sample distance threshold | **TBD — ADR-011** |
-| Accuracy acceptance threshold | **TBD — ADR-011** |
-| Background vs foreground policy | **TBD — Mobile + ADR-011** |
-| Stale display threshold | **TBD — ADR-011** |
+| Sample time interval | 5 seconds while online and the driver app is open |
+| Sample distance threshold | 20 meters |
+| Fresh | age ≤ 15 seconds and accuracy ≤ 30 meters |
+| Aging | age ≤ 45 seconds and accuracy ≤ 80 meters |
+| Stale | older than 45 seconds or accuracy worse than 80 meters |
+| Background GPS | Not in v1 |
 
 ## Authority
 

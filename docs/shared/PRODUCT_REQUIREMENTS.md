@@ -108,7 +108,7 @@ One rating is permitted per completed order unless an explicitly documented corr
 
 Repeated low ratings and severe complaints generate admin alerts according to configurable thresholds.
 
-Note: lifecycle documentation currently contains an unresolved contradiction about whether rating occurs before or after `COMPLETED`. Resolution: **TBD — ADR-004 / ADR-012**. Product intent expressed here is rating after completion.
+Note: rating happens after `COMPLETED` (ADR-004 Option B, ADR-012 Option A).
 
 ## 9. Financials
 

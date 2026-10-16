@@ -22,6 +22,8 @@ export function DriverActiveScreen() {
     tripPhase,
     nearDelivery,
     completeDeliveryWithPayment,
+    advanceServerTrip,
+    serverTripLabel,
     position,
     setStep,
     offer,
@@ -89,8 +91,9 @@ export function DriverActiveScreen() {
         </TrackingPulse>
       </div>
       <p className="mt-1 text-xs text-slate-500">
-        للتجريب: كل مرحلة تتقدم تلقائياً كل ~8 ثوانٍ. عند قرب التسليم (≤٥ دقائق) تقدروا
-        تقبلوا طلب ثاني.
+        {activeOffer.serverOfferId
+          ? "كل ضغطة تسجّل المرحلة على الخدمة."
+          : "مراحل الرحلة تتقدم تلقائياً. قرب التسليم يمكن قبول طلب ثانٍ."}
       </p>
 
       {queuedOffer ? (
@@ -192,14 +195,24 @@ export function DriverActiveScreen() {
         </a>
       </div>
 
-      <button
-        type="button"
-        disabled={!canFinish}
-        onClick={completeDeliveryWithPayment}
-        className="ui-btn-secondary mt-auto py-4 text-base disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        إنهاء الطلب — استلمت الأجرة
-      </button>
+      {serverTripLabel ? (
+        <button
+          type="button"
+          onClick={() => void advanceServerTrip()}
+          className="ui-btn-secondary mt-auto py-4 text-base"
+        >
+          {serverTripLabel}
+        </button>
+      ) : (
+        <button
+          type="button"
+          disabled={!canFinish}
+          onClick={completeDeliveryWithPayment}
+          className="ui-btn-secondary mt-auto py-4 text-base disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          إنهاء الطلب — استلمت الأجرة
+        </button>
+      )}
 
       {offer ? (
         <div className="fixed inset-x-0 bottom-0 z-40 rounded-t-3xl border border-red-900/40 bg-[#0d1524] p-4 shadow-[0_-20px_60px_rgba(0,0,0,.55)]">

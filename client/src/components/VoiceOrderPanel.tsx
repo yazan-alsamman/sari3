@@ -7,7 +7,8 @@ import {
   VOICE_ORDER_EXAMPLES,
   type ParsedVoiceOrder,
 } from "@/lib/parse-voice-order";
-import { calculateDemoPrice, INDUSTRIAL_AREAS } from "@/lib/demo-pricing";
+import { INDUSTRIAL_AREAS } from "@/lib/demo-pricing";
+import { useLiveQuote } from "@/lib/live-pricing";
 import { useVoiceRecognition } from "@/hooks/useVoiceRecognition";
 import { useApp } from "@/lib/store";
 
@@ -37,15 +38,14 @@ export function VoiceOrderPanel({
 
   const complete = missing.length === 0;
 
-  const price = useMemo(() => {
-    if (phase !== "review") return null;
-    return calculateDemoPrice({
-      pickupArea: draft.pickup.area,
-      deliveryArea: draft.delivery.area,
-      mode: draft.mode,
-      intermediateStopCount: draft.intermediateStops.length,
-    });
-  }, [phase, draft]);
+  const livePrice = useLiveQuote({
+    pickupArea: draft.pickup.area,
+    deliveryArea: draft.delivery.area,
+    mode: draft.mode,
+    intermediateStopCount: draft.intermediateStops.length,
+    weightClass: draft.packageSize === "heavy" ? "heavy" : "light",
+  });
+  const price = phase === "review" ? livePrice : null;
 
   function convertToOrder(raw?: string) {
     const text = (raw ?? voice.getTranscript() ?? voice.finalText).trim();

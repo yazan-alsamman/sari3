@@ -46,37 +46,36 @@ Exact Prisma definitions and migrations must be finalized only after domain mode
 
 | Concept | Notes |
 |---|---|
-| orders | Aggregate root |
-| order_stops or pickup/drop-off structures | Modeling TBD |
-| order_items / package_details | Taxonomy TBD ADR-008 |
-| dispatch_offers | Offer lifecycle TBD ADR-007 |
-| order_status_history | Required for auditability |
-| price snapshot storage | Immutable components on order |
+| orders | Aggregate root. Pickup and drop-off columns on the order (shop, landmark, optional coordinates, optional photo). Weight class is `light` / `heavy` (ADR-008). |
+| order_transitions | Append-only history — ADR-004 |
+| dispatch_offers | Offer lifecycle ADR-007. Created in Phase 5. |
+| price snapshot storage | Immutable components on `price_snapshots`, one snapshot per order |
 
 ## Tracking
 
 | Concept | Notes |
 |---|---|
-| driver_location_samples | High-volume; retention TBD ADR-011 |
+| driver_location_samples | High-volume. Deleted 24 hours after receivedAt (ADR-011). |
 | driver_presence / heartbeats | Optional; TBD ADR-011 |
 
 ## Ratings
 
 | Concept | Notes |
 |---|---|
-| ratings | Default uniqueness: one per completed/eligible order |
-| complaints | Severity TBD ADR-012 |
-| rating_alerts | Threshold evaluation TBD ADR-012 |
+| ratings | One row per order. Eligible only at `COMPLETED` (ADR-012) |
+| complaints | No severity. Status `open`, `investigated`, or `dismissed` |
+| rating_alerts | Not created. Threshold is still open |
 
 ## Finance
 
 | Concept | Notes |
 |---|---|
-| driver_accounts | Account per driver (cardinality TBD) |
-| ledger_entries | Append-only |
-| incentive_rules | Configuration |
-| driver_adjustments | Prefer modeling as ledger entries — TBD ADR-013 |
-| settlement_periods | Cadence TBD ADR-013 |
+| driver_accounts | Not a separate table. One ledger stream per driver user (ADR-013 Option B) |
+| ledger_entries | Append-only. Delivery kinds are unique per order |
+| trip bonus | `driver_profiles.tripBonusAmount`, default 0 |
+| capacity note | `driver_profiles.capacityNote`, free text for ops. Not a kilogram limit |
+| driver_adjustments | Stored as ledger kinds `penalty` and `adjustment` |
+| settlement_periods | No payout periods. Reports use Damascus day, Monday week, month, and year |
 
 ## Notifications / media / audit
 
@@ -86,7 +85,7 @@ Exact Prisma definitions and migrations must be finalized only after domain mode
 | notification_deliveries | Provider attempt results |
 | media_objects | Metadata in DB; bytes in object storage |
 | audit_logs | Privileged/high-risk actions |
-| idempotency_records | TBD ADR-017 |
+| idempotency_records | Actor + method + path + key, 24h replay — ADR-017 |
 
 ## Data integrity (conceptual)
 

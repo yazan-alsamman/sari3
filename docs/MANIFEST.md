@@ -1,4 +1,4 @@
-﻿# Saree'e Documentation Manifest
+# Saree'e Documentation Manifest
 
 ## Purpose
 
@@ -99,7 +99,7 @@ docs/
 - `docs/shared/` — product/domain/NFR documentation shared by clients.
 - `docs/mobile/` — Flutter mobile architecture and UX/operational documentation.
 - `docs/backend/` — backend architecture, domain, API, security, operations, testing, roadmap.
-- `docs/backend/adrs/` — Architecture Decision Records (all PROPOSED until approved).
+- `docs/backend/adrs/` — Architecture Decision Records. Status is in `docs/backend/ADR_INDEX.md`.
 
 ## Recommended starting order
 

@@ -90,21 +90,22 @@ Where a cell is unresolved, the value is marked `TBD — ADR-004`.
 
 | Current State | Action | Actor | Next State | Preconditions | Authorization | Side Effects |
 |---|---|---|---|---|---|---|
-| DRAFT | confirm_price | Customer | PRICE_CONFIRMED | TBD — ADR-004 / ADR-006 | TBD — ADR-003 | Create/attach price snapshot — TBD |
-| PRICE_CONFIRMED | submit_order | Customer | SEARCHING_DRIVER | TBD — ADR-004 | TBD — ADR-003 | Idempotent create — TBD ADR-017 |
-| SEARCHING_DRIVER | create_offer | System | DRIVER_OFFERED | Eligible drivers exist — TBD ADR-007 | System | Create dispatch offers |
-| DRIVER_OFFERED | accept_offer | Driver | DRIVER_ACCEPTED | Offer valid/unexpired — TBD ADR-007 | TBD — ADR-003 | Assign driver; cancel competing offers — TBD |
-| DRIVER_OFFERED | reject_offer | Driver | TBD — ADR-004 | TBD | TBD — ADR-003 | Reassignment policy — TBD ADR-007 |
-| DRIVER_OFFERED | offer_expired | System | TBD — ADR-004 | Timeout — TBD ADR-007 | System | Retry/reassign — TBD |
-| DRIVER_ACCEPTED | start_to_pickup | Driver/System | DRIVER_TO_PICKUP | TBD — ADR-004 | TBD — ADR-003 | Notify customer — TBD |
-| DRIVER_TO_PICKUP | confirm_pickup | Driver | PICKED_UP | Checkpoint/proof TBD — ADR-004 | TBD — ADR-003 | Notify; update route — TBD |
-| PICKED_UP | mark_in_transit | Driver/System | IN_TRANSIT | Whether distinct from PICKED_UP TBD — ADR-004 | TBD — ADR-003 | TBD |
-| IN_TRANSIT | confirm_delivery | Driver | DELIVERED | Checkpoint/proof TBD — ADR-004 | TBD — ADR-003 | Notify; finance posting eligibility TBD ADR-013 |
-| DELIVERED | open_rating | System | RATING_PENDING **or** COMPLETED | **Contradiction — ADR-004** | System | TBD |
+| DRAFT | confirm_price | Customer | PRICE_CONFIRMED | Active zones and pricing rule | Customer owner | Immutable price snapshot — ADR-006 |
+| PRICE_CONFIRMED | submit_order | Customer | SEARCHING_DRIVER | Snapshot attached | Customer owner | Idempotent create — ADR-017 `Idempotency-Key`. v1 submit performs confirm_price and submit_order in one command. |
+| SEARCHING_DRIVER | create_offer | System | DRIVER_OFFERED | Eligible drivers — ADR-007. Fresh only (ADR-011: ≤15s and ≤30m) | System | Create up to 5 dispatch offers |
+| DRIVER_OFFERED | accept_offer | Driver | DRIVER_ACCEPTED | Offer valid, 15s, first accept wins — ADR-007 | Offer assignee — ADR-003 | Assign driver; cancel competing offers. Requires `Idempotency-Key` — ADR-017 |
+| DRIVER_OFFERED | reject_offer | Driver | SEARCHING_DRIVER or DRIVER_OFFERED | ADR-004 / ADR-007 | Offer assignee | If another offer is still open, stay `DRIVER_OFFERED`; otherwise return to `SEARCHING_DRIVER`. Not `UNFULFILLED`. Implemented |
+| DRIVER_OFFERED | offer_expired | System | SEARCHING_DRIVER or DRIVER_OFFERED | 15 seconds — ADR-007 | System | Same as reject: keep searching while offers remain |
+| DRIVER_ACCEPTED | start_to_pickup | Driver | DRIVER_TO_PICKUP | Assigned approved driver | Assigned driver — ADR-003 | Record transition |
+| DRIVER_TO_PICKUP | confirm_pickup | Driver | PICKED_UP | Assigned driver | Assigned driver | Record transition |
+| PICKED_UP | mark_in_transit | Driver | IN_TRANSIT | State retained — ADR-004 | Assigned driver | Record transition |
+| IN_TRANSIT | confirm_delivery | Driver | DELIVERED | Optional proof photo — ADR-015 | Assigned driver | Record transition |
+| DELIVERED | complete | Driver | COMPLETED | Delivery checkpoint recorded | Assigned driver | Rating becomes eligible — ADR-004 Option B. Rating command waits on ADR-012. |
 | RATING_PENDING | submit_rating | Customer | COMPLETED | If Option A chosen — ADR-004 / ADR-012 | TBD — ADR-003 | Persist rating |
 | RATING_PENDING | skip/timeout | System/Customer | COMPLETED | If Option A chosen — policy TBD ADR-004 | TBD | TBD |
-| COMPLETED | submit_rating | Customer | COMPLETED | If Option B chosen — ADR-004 / ADR-012 | TBD — ADR-003 | Persist rating |
-| * (allowed set TBD) | cancel | Customer/Admin/Driver? | CANCELLED | Cancellation windows TBD — ADR-004 | TBD — ADR-003 | Notify; finance implications TBD |
+| COMPLETED | submit_rating | Customer | COMPLETED | One rating, no edit (ADR-012 Option A) | Order owner | Persist rating |
+| COMPLETED | rating.requested | System | COMPLETED | Emitted on the order room | Order members | Ask the customer to rate |
+| DRAFT … DRIVER_TO_PICKUP | cancel | Customer | CANCELLED | No fee until commercial sheet — ADR-004 | Owner | Record reason |
 | * (allowed set TBD) | expire | System | EXPIRED | Expiration rules TBD — ADR-004 | System | TBD |
 | * (allowed set TBD) | fail | System/Admin | FAILED | Failure taxonomy TBD — ADR-004 | TBD — ADR-003 | TBD |
 | * (allowed set TBD) | admin_override | Admin | TBD — ADR-004 | Explicit permission | TBD — ADR-003 | Mandatory audit |
@@ -112,7 +113,7 @@ Where a cell is unresolved, the value is marked `TBD — ADR-004`.
 ## Decision checklist for ADR-004
 
 - [ ] Final state list (include/exclude `DRAFT`, `IN_TRANSIT`, `RATING_PENDING`, `REJECTED/UNFULFILLED`)
-- [ ] Resolve rating vs completion contradiction
+- [x] Resolve rating vs completion contradiction — ADR-004 Option B and ADR-012 Option A (2026-10-13)
 - [ ] Actor and authorization per transition
 - [ ] Cancellation windows by state and actor
 - [ ] Expiration rules

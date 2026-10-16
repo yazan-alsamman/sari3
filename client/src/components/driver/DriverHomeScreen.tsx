@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useDriver } from "@/lib/driver-store";
-import { DEMO_RADIUS_NOTE } from "@/lib/driver-types";
 import { formatSyp } from "@/lib/demo-currency";
 import { mapsNavUrlForArea } from "@/lib/notify";
 import { EmptyState } from "@/components/EmptyState";
@@ -39,8 +38,9 @@ export function DriverHomeScreen() {
   function toggleOnline() {
     setGateMsg(null);
     const next = online ? "offline" : "available";
-    const r = setAvailability(next);
-    if (!r.ok) setGateMsg(r.error);
+    void setAvailability(next).then((r) => {
+      if (!r.ok) setGateMsg(r.error);
+    });
   }
 
   return (
@@ -153,15 +153,11 @@ export function DriverHomeScreen() {
           </button>
         </div>
 
-        <p className="text-[11px] leading-relaxed text-slate-500">
-          {DEMO_RADIUS_NOTE} · الطلبات تجي فقط من واجهة العميل (نفس المتصفح). ما في طلبات وهمية.
-        </p>
-
         {canWork && online && !offer ? (
           <EmptyState
             tone="wait"
-            title="عم ننتظر طلب عميل…"
-            body="افتحوا تبويب العميل من نفس المتصفح واعملوا طلب جديد. بعد ما تخلّصوا رحلة، العرض ما بيرجع — لازم طلب جديد من العميل."
+            title="بانتظار طلب"
+            body="عروض التوصيل بتوصل لما ينشر التوزيع سائقاً. الطلب الجديد ينسجل على الخدمة ويبقى يبحث عن سائق."
           />
         ) : null}
         {canWork && !online ? (
@@ -236,13 +232,6 @@ export function DriverHomeScreen() {
               </div>
             </div>
             <p className="text-base font-bold text-white">{offer.customerName}</p>
-            {offer.linkedOrderId ? (
-              <p className="text-[11px] font-semibold text-emerald-300">
-                طلب حقيقي من واجهة العميل
-              </p>
-            ) : (
-              <p className="text-[11px] text-slate-500">طلب محاكاة</p>
-            )}
             <p className="mt-1 text-sm text-slate-300">
               من {offer.pickup.shopName} — {offer.pickup.area}
             </p>
@@ -359,7 +348,6 @@ export function DriverHomeScreen() {
                   }
                   className="mt-3 w-full accent-red-600"
                 />
-                <p className="mt-2 text-[11px] text-slate-500">{DEMO_RADIUS_NOTE}</p>
               </div>
               <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-xs text-slate-400">
                 <p>الموتور: {account?.vehicle.motorcycleModel}</p>

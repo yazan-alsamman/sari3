@@ -19,7 +19,7 @@ The backend validates eligibility and uniqueness.
 
 ## Open policy
 
-Whether rating happens after `COMPLETED` or during `RATING_PENDING` is **TBD — ADR-004 / ADR-012**.
+Rating opens after the order is `COMPLETED` (ADR-012). The customer cannot edit it.
 
 Mobile follows backend eligibility signals; it does not decide the state machine.
 

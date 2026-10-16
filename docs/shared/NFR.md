@@ -15,7 +15,7 @@ Cross-cutting non-functional requirements for Saree'e.
 
 ## Reliability
 
-- Idempotency for order creation/payment-like financial commands and retryable callbacks (**TBD — ADR-017**).
+- Idempotency for order creation, offer accept/reject, rating submit, and financial adjustments (ADR-017 Option A).
 - Transactional state changes.
 - Background jobs for notifications and asynchronous processing.
 - Explicit retry and dead-letter strategy.

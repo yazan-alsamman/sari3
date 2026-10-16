@@ -30,22 +30,43 @@ export interface ParsedVoiceOrder {
   isComplete: boolean;
 }
 
-type AreaKey = "HOSH" | "QADAM" | "ZAHIRA" | "MEZZEH" | "BARAMKEH";
+type AreaKey =
+  | "HOSH"
+  | "SINAA"
+  | "BARAMKEH"
+  | "MEZZEH"
+  | "JARAMANA"
+  | "TINAWI"
+  | "NAKHIL"
+  | "KHAN"
+  | "TALL"
+  | "DOUMA";
 
+/** Exact service-zone names (ADR-005). Spoken forms are folded onto these. */
 const AREA_NAME: Record<AreaKey, string> = {
   HOSH: "حوش بلاس",
-  QADAM: "القدم الصناعية",
-  ZAHIRA: "الزاهرة",
-  MEZZEH: "المزة",
-  BARAMKEH: "البرامكة",
+  SINAA: "صناعة",
+  BARAMKEH: "برامكة",
+  MEZZEH: "مزة",
+  JARAMANA: "جرمانا",
+  TINAWI: "كراج تيناوي",
+  NAKHIL: "كراج النخيل",
+  KHAN: "كراج خان زاده",
+  TALL: "صناعية تل",
+  DOUMA: "دوما",
 };
 
 const AREA_TOKENS: Array<[string, string]> = [
   ["#HOSH#", AREA_NAME.HOSH],
-  ["#QADAM#", AREA_NAME.QADAM],
-  ["#ZAHIRA#", AREA_NAME.ZAHIRA],
-  ["#MEZZEH#", AREA_NAME.MEZZEH],
+  ["#SINAA#", AREA_NAME.SINAA],
   ["#BARAMKEH#", AREA_NAME.BARAMKEH],
+  ["#MEZZEH#", AREA_NAME.MEZZEH],
+  ["#JARAMANA#", AREA_NAME.JARAMANA],
+  ["#TINAWI#", AREA_NAME.TINAWI],
+  ["#NAKHIL#", AREA_NAME.NAKHIL],
+  ["#KHAN#", AREA_NAME.KHAN],
+  ["#TALL#", AREA_NAME.TALL],
+  ["#DOUMA#", AREA_NAME.DOUMA],
 ];
 
 const CHAT_PREFIX =
@@ -69,7 +90,6 @@ function normChars(s: string): string {
 /** Lock area phrases into tokens so later rules can't break names. */
 function lockAreas(input: string): string {
   let t = input;
-  const ar = "\\u0600-\\u06FF";
 
   // Spoken shortcuts for حوش بلاس (after norm: على→علي)
   t = t
@@ -81,25 +101,21 @@ function lockAreas(input: string): string {
 
   t = t
     .replace(/(?:^|\s)ب(?:ال)?(حوش\s*بلاس|حوشبلاس)/g, " $1 ")
-    .replace(new RegExp(`(?:^|\\s)ب(?:ال)?(القدم(?:\\s*الصناعي[${ar}]*)?)`, "g"), " $1 ")
-    .replace(new RegExp(`(?:^|\\s)ب(?:ال)?(الزاهر[${ar}]*)`, "g"), " $1 ")
-    .replace(new RegExp(`(?:^|\\s)ب(?:ال)?(المز[${ar}]*)`, "g"), " $1 ")
-    .replace(new RegExp(`(?:^|\\s)ب(?:ال)?(البرامك[${ar}]*)`, "g"), " $1 ")
     .replace(/(?:^|\s)في\s+/g, " ");
 
-  // JS \w / \b do not work for Arabic
+  // Longer names first. Text is already normalized (ة → ه).
   t = t
+    .replace(/(?:^|\s)ب(?=دوما|برامكه|مزه|جرمانا|صناعه|كراج|صناعيه)/g, " ")
+    .replace(/كراج\s*تيناوي/g, " #TINAWI# ")
+    .replace(/كراج\s*النخيل/g, " #NAKHIL# ")
+    .replace(/كراج\s*خان\s*زاده/g, " #KHAN# ")
+    .replace(/صناعيه\s*تل/g, " #TALL# ")
     .replace(/حوش\s*بلاس|حوشبلاس|حوش\s*بلاص|حوش\s*بلاش/g, " #HOSH# ")
-    .replace(
-      new RegExp(
-        `القدم(?:\\s*الصناعي[${ar}]*)?|المنطقه?\\s*الصناعي[${ar}]*|منطقه?\\s*صناعي[${ar}]*`,
-        "g",
-      ),
-      " #QADAM# ",
-    )
-    .replace(/الزاهره|الزاهرة/g, " #ZAHIRA# ")
-    .replace(/المزه|المزة/g, " #MEZZEH# ")
-    .replace(/البرامكه|البرامكة|برامكه|برامكة/g, " #BARAMKEH# ")
+    .replace(/المنطقه?\s*الصناعيه?|منطقه?\s*صناعيه?|(?:^|\s)صناعه(?=\s|$)/g, " #SINAA# ")
+    .replace(/البرامكه|برامكه/g, " #BARAMKEH# ")
+    .replace(/المزه|(?:^|\s)مزه(?=\s|$)/g, " #MEZZEH# ")
+    .replace(/جرمانا/g, " #JARAMANA# ")
+    .replace(/(?:^|\s)دوما(?=\s|$)/g, " #DOUMA# ")
     .replace(/(?:من\s*)?(?:هنيك|هناك|هونيك|من\s*هون)/g, " #THERE# ");
 
   return t.replace(/\s+/g, " ").trim();
@@ -144,9 +160,9 @@ function lastAreaBefore(text: string, atIndex: number): string {
 
 function shopOnly(chunk: string): string {
   let s = chunk
-    .replace(/#HOSH#|#QADAM#|#ZAHIRA#|#MEZZEH#|#BARAMKEH#|#THERE#/g, " ")
+    .replace(/#(?:HOSH|SINAA|BARAMKEH|MEZZEH|JARAMANA|TINAWI|NAKHIL|KHAN|TALL|DOUMA|THERE)#/g, " ")
     .replace(
-      /حوش\s*بلاس|حوشبلاس|القدم(?:\s*الصناعي[\u0600-\u06FF]*)?|الزاهره|الزاهرة|المزه|المزة|البرامكه|البرامكة|صناعي[\u0600-\u06FF]*|منطقه|منطقة/g,
+      /حوش\s*بلاس|حوشبلاس|صناعيه\s*تل|صناعه|برامكه|المزه|مزه|جرمانا|كراج\s*تيناوي|كراج\s*النخيل|كراج\s*خان\s*زاده|دوما|منطقه|منطقة/g,
       " ",
     )
     .replace(/\|FROM\||\|TO\||\|VIA\|/g, " ")
@@ -358,7 +374,7 @@ function collectMissing(
     missing.push({
       id: "pickupArea",
       label: "منطقة الاستلام ناقصة",
-      hint: "حوش بلاس / القدم / الزاهرة / المزة",
+      hint: "حوش بلاس / صناعة / مزة / دوما",
     });
   }
   if (!delivery.shopName) {
@@ -376,7 +392,7 @@ function collectMissing(
       missing.push({
         id: "stopIncomplete",
         label: `توقف ${i + 1} غير مكتمل`,
-        hint: "محل + منطقة (مثل: عابدين بالبرامكة)",
+        hint: "محل + منطقة (مثل: عابدين ببرامكة)",
       });
     }
   });
@@ -461,10 +477,10 @@ export function parseVoiceOrderTranscript(transcript: string): ParsedVoiceOrder 
 }
 
 export const VOICE_ORDER_EXAMPLES = [
-  "من طعمة حوش بلاس لعند سبانو منطقة صناعية",
-  "من طعمة القدم لسبانو المزة وعلى طريقك خود من محل عابدين بالبرامكة",
-  "من سبانو المزة إلى طعمة الزاهرة وانت طالع خود من محل بوني زينز بحوش بلاس",
-  "من الفرامل القدم لسبانو المزة بس توصل عالحوش بدي تاخود قطعة تانية من هنيك",
+  "من طعمة حوش بلاس لعند سبانو صناعة",
+  "من طعمة برامكة لسبانو المزة وعلى طريقك خود من محل عابدين بدوما",
+  "من سبانو المزة إلى طعمة جرمانا وانت طالع خود من محل بوني زينز بحوش بلاس",
+  "من الفرامل صناعة لسبانو كراج تيناوي بس توصل عالحوش بدي تاخود قطعة تانية من هنيك",
 ];
 
 export const VOICE_GUIDE = "";

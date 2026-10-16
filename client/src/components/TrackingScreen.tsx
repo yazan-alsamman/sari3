@@ -1,11 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { BrandHeader } from "./BrandHeader";
 import { EmptyState } from "./EmptyState";
 import { LiveMapDynamic } from "./LiveMapDynamic";
 import { AutomotiveLoader } from "./ui/MotionPrimitives";
 import { mapsNavUrlForArea, PACKAGE_SIZES } from "@/lib/notify";
+import { apiCreateComplaint } from "@/lib/backend-api";
 import { useApp } from "@/lib/store";
 
 const STEPS = [
@@ -31,6 +33,8 @@ export function TrackingScreen() {
     openCancelModal,
     openRatingModal,
   } = useApp();
+  const [complaint, setComplaint] = useState("");
+  const [complaintMsg, setComplaintMsg] = useState<string | null>(null);
 
   if (!activeOrder) {
     return (
@@ -54,7 +58,9 @@ export function TrackingScreen() {
 
   const { draft, driver, status, price, cancelReason } = activeOrder;
   const canCancel = ["searching", "assigned", "in_transit"].includes(status);
-  const needsRating = status === "delivered" && !lastRating;
+  const needsRating = activeOrder.serverOrderId
+    ? Boolean(activeOrder.ratingEligible) && !lastRating
+    : status === "delivered" && !lastRating;
   const activeIdx = stepIndex(status);
   const sizeLabel =
     PACKAGE_SIZES.find((s) => s.id === draft.packageSize)?.label ?? "";
@@ -99,7 +105,7 @@ export function TrackingScreen() {
             </div>
             <p className="mt-3 text-center text-sm font-semibold text-red-200">
               {status === "searching" &&
-                "بانتظار سائق — افتحوا التطبيق كسائق وفعّلوا «متاح» ليقبل الطلب"}
+                "الطلب مسجّل على الخدمة، وجاري البحث عن سائق"}
               {status === "assigned" && "السائق في طريقه إليكم"}
               {status === "in_transit" && "السائق بالطريق — تابعوه على الخريطة"}
               {(status === "delivered" || status === "rated") &&
@@ -118,7 +124,11 @@ export function TrackingScreen() {
             stopLabels={draft.intermediateStops.map(
               (s) => s.shopName || "توقف",
             )}
-            inTransit={status === "in_transit" || status === "assigned"}
+            inTransit={
+              (status === "in_transit" || status === "assigned") &&
+              !activeOrder.serverOrderId
+            }
+            driverPoint={activeOrder.driverPoint}
           />
         ) : null}
 
@@ -184,14 +194,19 @@ export function TrackingScreen() {
 
         {!driver && status === "searching" ? (
           <div className="ui-glass rounded-3xl p-6 text-center text-slate-300">
-            <AutomotiveLoader label="جاري انتظار قبول سائق من واجهة السائق..." />
+            <AutomotiveLoader label="الخدمة تبحث عن سائق" />
             <p className="mt-2 text-xs text-slate-500">
-              ارجعوا لاختيار الدور ← ابدأ كسائق ← متاح للعمل
+              الطلب ظاهر للسائقين المتصلين. أول سائق يقبل خلال ١٥ ثانية يثبت التعيين.
             </p>
           </div>
         ) : null}
 
         <section className="ui-glass rounded-3xl p-4 text-sm text-slate-300">
+          {activeOrder.orderNumber ? (
+            <p className="mb-2 text-xs text-slate-400">
+              {activeOrder.orderNumber}
+            </p>
+          ) : null}
           <p>
             <span className="text-slate-400">من:</span> {draft.pickup.shopName} —{" "}
             {draft.pickup.area}
@@ -213,7 +228,7 @@ export function TrackingScreen() {
             </p>
           ) : null}
           <p className="mt-2 text-red-300">
-            السعر التجريبي: {price.total.toLocaleString("ar-SY")}{" "}
+            سعر التوصيل: {price.total.toLocaleString("ar-SY")}{" "}
             {price.currencyLabel}
           </p>
 
@@ -245,7 +260,11 @@ export function TrackingScreen() {
             animate={{ opacity: 1, y: 0 }}
             className="rounded-2xl border border-red-800/40 bg-red-950/30 p-4 text-sm text-red-100"
           >
-            <p className="font-semibold">السائق أكّد التسليم — قيّم الخدمة</p>
+            <p className="font-semibold">
+              {activeOrder.serverOrderId
+                ? "الطلب اكتمل — قيّموا الخدمة مرة واحدة"
+                : "السائق أكّد التسليم — قيّم الخدمة"}
+            </p>
             <button
               type="button"
               onClick={openRatingModal}
@@ -254,6 +273,37 @@ export function TrackingScreen() {
               قيّم الآن
             </button>
           </motion.div>
+        ) : null}
+
+        {activeOrder.serverOrderId && status !== "cancelled" ? (
+          <form
+            className="ui-glass rounded-3xl p-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const text = complaint.trim();
+              if (!text || !activeOrder.serverOrderId) return;
+              void apiCreateComplaint(activeOrder.serverOrderId, text)
+                .then(() => {
+                  setComplaint("");
+                  setComplaintMsg("وصلت الشكوى. الإدارة تراجعها.");
+                })
+                .catch(() => setComplaintMsg("ما انرسلت الشكوى."));
+            }}
+          >
+            <p className="text-sm font-semibold text-slate-200">شكوى على هذا الطلب</p>
+            <textarea
+              value={complaint}
+              maxLength={500}
+              onChange={(event) => setComplaint(event.target.value)}
+              className="ui-input mt-2 text-sm"
+              rows={3}
+              placeholder="اكتبوا ما صار"
+            />
+            <button type="submit" className="ui-btn-ghost mt-2 px-4 py-2 text-sm">
+              إرسال الشكوى
+            </button>
+            {complaintMsg ? <p className="mt-2 text-xs text-slate-400">{complaintMsg}</p> : null}
+          </form>
         ) : null}
 
         {lastRating ? (

@@ -1,16 +1,17 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { BrandHeader } from "./BrandHeader";
 import { INDUSTRIAL_AREAS } from "@/lib/demo-pricing";
+import { listLiveZoneNames } from "@/lib/live-pricing";
 import { useApp } from "@/lib/store";
 
 /**
  * Customer auth — same demo pattern as driver:
  * - Register once (full shop profile + password)
  * - Later visits: name + password only
- * Accounts live in localStorage (not production auth / ADR-002).
+ * Accounts are created on the backend (phone + password). Shop fields stay on this device.
  */
 export function AuthScreen() {
   const { registerCustomer, loginCustomer } = useApp();
@@ -18,6 +19,7 @@ export function AuthScreen() {
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
+  const [areas, setAreas] = useState<string[]>([...INDUSTRIAL_AREAS]);
   const [personalInfo, setPersonalInfo] = useState("");
   const [shopName, setShopName] = useState("");
   const [industrialArea, setIndustrialArea] = useState<string>(
@@ -26,29 +28,37 @@ export function AuthScreen() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  function onSubmit(e: FormEvent) {
+  useEffect(() => {
+    void listLiveZoneNames().then((names) => {
+      if (names && names.length > 0) {
+        setAreas(names);
+        setIndustrialArea((current) =>
+          names.includes(current) ? current : names[0],
+        );
+      }
+    });
+  }, []);
+
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
-
-    window.setTimeout(() => {
-      if (mode === "login") {
-        const r = loginCustomer({ fullName, password });
-        if (!r.ok) setError(r.error);
-        setSubmitting(false);
-        return;
-      }
-      const r = registerCustomer({
-        fullName,
-        phone,
-        password,
-        personalInfo,
-        shopName,
-        industrialArea,
-      });
+    if (mode === "login") {
+      const r = await loginCustomer({ phone, password });
       if (!r.ok) setError(r.error);
       setSubmitting(false);
-    }, 280);
+      return;
+    }
+    const r = await registerCustomer({
+      fullName,
+      phone,
+      password,
+      personalInfo,
+      shopName,
+      industrialArea,
+    });
+    if (!r.ok) setError(r.error);
+    setSubmitting(false);
   }
 
   return (
@@ -57,7 +67,7 @@ export function AuthScreen() {
         showBack
         subtitle={
           mode === "login"
-            ? "دخول العميل — اسم + كلمة مرور"
+            ? "دخول العميل — موبايل + كلمة مرور"
             : "إنشاء حساب محل مرة واحدة"
         }
       />
@@ -102,22 +112,32 @@ export function AuthScreen() {
         <div className="ui-glass rounded-3xl p-5">
           <p className="mb-4 text-sm leading-relaxed text-slate-300">
             {mode === "login"
-              ? "إذا عندكم حساب من قبل — الاسم الكامل + كلمة المرور كافية. ما في داعي تعبّوا المحل من جديد."
-              : "مرة واحدة بس: اسم، موبايل، محل، منطقة، وكلمة مرور. المرات الجاية دخول سريع."}
+              ? "الدخول برقم الموبايل وكلمة المرور على السيرفر."
+              : "مرة واحدة: اسم، موبايل، محل، منطقة، وكلمة مرور (8 أحرف). الحساب ينحفظ على السيرفر."}
           </p>
 
           <div className="space-y-4">
-            <Field
-              label="الاسم الكامل"
-              value={fullName}
-              onChange={setFullName}
-              placeholder="مثال: محمد السبانو"
-            />
+            {mode === "register" ? (
+              <Field
+                label="الاسم الكامل"
+                value={fullName}
+                onChange={setFullName}
+                placeholder="مثال: محمد السبانو"
+              />
+            ) : (
+              <Field
+                label="رقم الموبايل"
+                value={phone}
+                onChange={setPhone}
+                placeholder="09xxxxxxxx"
+                type="tel"
+              />
+            )}
             <Field
               label="كلمة المرور"
               value={password}
               onChange={setPassword}
-              placeholder="••••••••"
+              placeholder="8 أحرف على الأقل"
               type="password"
             />
 
@@ -164,7 +184,7 @@ export function AuthScreen() {
                       value={industrialArea}
                       onChange={(e) => setIndustrialArea(e.target.value)}
                     >
-                      {INDUSTRIAL_AREAS.map((area) => (
+                      {areas.map((area) => (
                         <option key={area} value={area} className="bg-[#0a1628]">
                           {area}
                         </option>
@@ -197,7 +217,7 @@ export function AuthScreen() {
         </motion.button>
 
         <p className="text-center text-[11px] text-slate-500">
-          تخزين محلي على الجهاز — مو سيرفر حقيقي (نفس أسلوب دخول السائق)
+          الحساب على السيرفر. تفاصيل المحل تبقى على هذا الجهاز لشاشة الطلب.
         </p>
       </motion.form>
     </div>

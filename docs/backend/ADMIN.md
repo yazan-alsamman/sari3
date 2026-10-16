@@ -4,6 +4,10 @@
 
 Defines backend administrative/operational capabilities and distinguishes them from any future admin web UI.
 
+## Status
+
+Phase 9 reads the live snapshot, lists drivers, suspends and reactivates with an audit reason, and updates basket size or the capacity note. Order search accepts `status` and an exact `orderNumber`. Lifecycle override stays unimplemented because ADR-004 does not list the allowed target states. Rating alerts stay unimplemented because ADR-012 has no threshold.
+
 ## Dashboard capabilities (backend-supported)
 
 - Live driver map.

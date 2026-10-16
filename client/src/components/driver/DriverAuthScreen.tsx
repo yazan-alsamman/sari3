@@ -17,7 +17,7 @@ function fileToDataUrl(file: File): Promise<string> {
 export function DriverAuthScreen({ onBack }: { onBack: () => void }) {
   const { register, login } = useDriver();
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [displayName, setDisplayName] = useState("");
+  const [idFile, setIdFile] = useState<File | null>(null);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [birthDate, setBirthDate] = useState("");
@@ -31,6 +31,7 @@ export function DriverAuthScreen({ onBack }: { onBack: () => void }) {
   const [error, setError] = useState<string | null>(null);
 
   async function onIdPhoto(file: File | null) {
+    setIdFile(file);
     if (!file) {
       setIdPhotoDataUrl(null);
       return;
@@ -42,11 +43,11 @@ export function DriverAuthScreen({ onBack }: { onBack: () => void }) {
     }
   }
 
-  function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     if (mode === "login") {
-      const r = login({ displayName, password });
+      const r = await login({ phone, password });
       if (!r.ok) setError(r.error);
       return;
     }
@@ -54,11 +55,16 @@ export function DriverAuthScreen({ onBack }: { onBack: () => void }) {
       setError("اختاروا حجم السلة");
       return;
     }
-    const r = register({
+    if (!idFile) {
+      setError("ارفعوا صورة الهوية");
+      return;
+    }
+    const r = await register({
       firstName,
       lastName,
       birthDate,
       idPhotoDataUrl: idPhotoDataUrl ?? "",
+      idPhotoFile: idFile,
       phone,
       password,
       vehicle: {
@@ -94,7 +100,7 @@ export function DriverAuthScreen({ onBack }: { onBack: () => void }) {
         دخول السائق
       </h1>
       <p className="mt-1 text-sm text-slate-400">
-        إنشاء الحساب مرة: هوية + موتور + حجم السلة والسعة — بعدين اسم + كلمة مرور.
+        إنشاء الحساب مرة على السيرفر: هوية + موتور + حجم السلة. الدخول برقم الموبايل.
         الحساب الجديد بانتظار موافقة الأدمن.
       </p>
 
@@ -122,10 +128,11 @@ export function DriverAuthScreen({ onBack }: { onBack: () => void }) {
       <form onSubmit={onSubmit} className="mt-5 space-y-3 pb-8">
         {mode === "login" ? (
           <Field
-            label="اسم السائق (الاسم والكنية)"
-            value={displayName}
-            onChange={setDisplayName}
-            placeholder="مثل: أحمد معروف"
+            label="رقم الموبايل"
+            value={phone}
+            onChange={setPhone}
+            placeholder="09xxxxxxxx"
+            inputMode="tel"
           />
         ) : (
           <>
@@ -248,7 +255,7 @@ export function DriverAuthScreen({ onBack }: { onBack: () => void }) {
       </form>
 
       <p className="mt-2 text-center text-[11px] text-slate-500">
-        تخزين محلي للتجربة فقط — مو حساب سيرفر حقيقي (ADR-002)
+        الحساب والهوية على السيرفر. موافقة الأدمن تتحدث تلقائياً.
       </p>
     </section>
   );

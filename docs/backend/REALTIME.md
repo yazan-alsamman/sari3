@@ -6,7 +6,11 @@ Defines realtime update channels as an acceleration layer over authoritative RES
 
 ## Status
 
-Transport choice undecided.
+Transport is **Socket.IO** (ADR-010 ACCEPTED, 2026-10-13). Path `/socket.io` on the API process. Connection requires the JWT access token in `auth.token` or `Authorization: Bearer`.
+
+Membership is **ADR-016 Option A** (ACCEPTED, 2026-10-13). The server joins sockets to `order:{orderId}`, `driver:{userId}`, and `admin:ops`. The client does not send a room name.
+
+The client connects with the stored access token. On connect and reconnect it reads `GET /orders`. While the session stays open, that read still repeats every 5 seconds so a missed event is recovered. Phase 6 events are consumed: `order.status.changed`, `driver.location.updated`, `dispatch.offer.created`, and `dispatch.offer.expired`. `rating.requested` and `admin.alert.created` stay proposed until ADR-012.
 
 Related ADRs:
 
@@ -20,24 +24,25 @@ Related ADRs:
 
 REST remains authoritative for commands and initial reads.
 
-## Channels (proposed)
+## Channels (ADR-016)
 
-- Customer order room
-- Driver private channel
-- Admin operational channel
+- `order:{orderId}` — owning customer, and the assigned driver after assignment
+- `driver:{userId}` — that driver only
+- `admin:ops` — admins
 
-Membership rules: **TBD — ADR-016**.
+## Events
 
-## Events (proposed)
+Frozen for Phase 6, plus `rating.requested` when the order becomes `COMPLETED` (ADR-012):
 
 - `order.status.changed`
 - `driver.location.updated`
 - `dispatch.offer.created`
-- `dispatch.offer.expired`
+- `dispatch.offer.expired` (`status`: `expired`, `rejected`, or `cancelled`)
 - `rating.requested`
-- `admin.alert.created`
 
-Final event catalog: **TBD — ADR-010** (coordinate with ADR-004 / ADR-007 / ADR-012).
+Still proposed until a threshold is accepted:
+
+- `admin.alert.created`
 
 ## Rules
 

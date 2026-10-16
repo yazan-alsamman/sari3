@@ -6,8 +6,8 @@ import { AppShell } from "@/components/AppShell";
 import { DriverShell } from "@/components/driver/DriverShell";
 import { InAppToastHost } from "@/components/InAppToastHost";
 import { OfflineBanner } from "@/components/OfflineBanner";
-import { DemoSameBrowserBanner } from "@/components/DemoSameBrowserBanner";
 import { BackendHealthBanner } from "@/components/BackendHealthBanner";
+import { RealtimeBridge } from "@/components/RealtimeBridge";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { DriverProvider } from "@/lib/driver-store";
 import { AppProvider } from "@/lib/store";
@@ -61,12 +61,11 @@ export function RootShell() {
   return (
     <ThemeProvider>
       <AppProvider>
+        <RealtimeBridge />
         <DriverProvider>
           <InAppToastHost />
           <OfflineBanner />
           <BackendHealthBanner />
-          {/* Welcome has its own demo banner; keep it visible on customer/driver/admin too */}
-          {role !== "pick" ? <DemoSameBrowserBanner /> : null}
           {role === "admin" ? <AdminShell onExit={leaveAdmin} /> : null}
           {role === "pick" ? (
             <WelcomeScreen

@@ -37,7 +37,7 @@ Controllers, DTOs, guards, serializers, WebSocket gateways.
 - No domain dependency on NestJS/Prisma.
 - No controller business logic.
 - Transactions around state transitions that must be atomic.
-- Idempotency for retryable commands (**TBD — ADR-017**).
+- Idempotency for retryable commands (ADR-017 Option A).
 - Audit events for privileged or high-risk operations.
 
 ## Suggested module ownership

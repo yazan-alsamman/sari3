@@ -17,7 +17,7 @@ const tajawal = Tajawal({
 export const metadata: Metadata = {
   title: "سريع حوش بلاس | Saree'e Hosh Blass",
   description:
-    "منصة توصيل قطع السيارات للمحلات والسائقين في المناطق الصناعية — نموذج واجهات",
+    "توصيل قطع السيارات بين المحلات والسائقين في المناطق الصناعية",
   applicationName: "سريع حوش بلاس",
 };
 

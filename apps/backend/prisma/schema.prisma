@@ -44,6 +44,31 @@ enum WeightClass {
   heavy
 }
 
+/// ADR-004 v1. RATING_PENDING is not a state.
+enum OrderStatus {
+  DRAFT
+  PRICE_CONFIRMED
+  SEARCHING_DRIVER
+  DRIVER_OFFERED
+  DRIVER_ACCEPTED
+  DRIVER_TO_PICKUP
+  PICKED_UP
+  IN_TRANSIT
+  DELIVERED
+  COMPLETED
+  CANCELLED
+  EXPIRED
+  FAILED
+  UNFULFILLED
+}
+
+enum TransitionSource {
+  customer
+  driver
+  admin
+  system
+}
+
 /// Schema bootstrap marker — Phase 1.
 model SchemaMeta {
   id        String   @id @default(cuid())
@@ -70,6 +95,17 @@ model User {
   mediaObjects          MediaObject[]
   auditLogs             AuditLog[]             @relation("AuditActor")
   pricingRuleVersions   PricingRuleVersion[]   @relation("PricingRuleAuthor")
+  ordersCreated         Order[]                @relation("OrderCustomer")
+  ordersAssigned        Order[]                @relation("OrderDriver")
+  idempotencyRecords    IdempotencyRecord[]
+  driverAvailability    DriverAvailability?
+  locationSamples       DriverLocationSample[]
+  dispatchOffers        DispatchOffer[]
+  ratingsAuthored       Rating[]               @relation("RatingCustomer")
+  ratingsReceived       Rating[]               @relation("RatingDriver")
+  complaintsAuthored    Complaint[]            @relation("ComplaintCustomer")
+  ledgerAsDriver        LedgerEntry[]          @relation("LedgerDriver")
+  ledgerAsActor         LedgerEntry[]          @relation("LedgerActor")
 
   @@map("users")
 }
@@ -94,8 +130,12 @@ model DriverProfile {
   birthDate          DateTime             @db.Date
   vehicleDescription String
   basketSize         BasketSize
+  /// Free-text capacity declaration for ops review (ADR-008). Not a weight limit.
+  capacityNote       String?
   /// Operational capacity hint (domain max active orders stays 2 per ADR-008/009).
   capacitySlots      Int                  @default(2)
+  /// Optional flat bonus per completed trip (ADR-013). Zero means no bonus entry.
+  tripBonusAmount    Int                  @default(0)
   approvalStatus     DriverApprovalStatus @default(pending)
   idPhotoMediaId     String?              @unique
   createdAt          DateTime             @default(now())
@@ -135,8 +175,11 @@ model MediaObject {
   confirmedAt   DateTime?
   createdAt     DateTime     @default(now())
 
-  owner  User?          @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
-  driver DriverProfile?
+  owner         User?          @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+  driver        DriverProfile?
+  pickupPhotos  Order[]        @relation("PickupPhoto")
+  deliveryPhotos Order[]       @relation("DeliveryPhoto")
+  deliveryProofs Order[]       @relation("DeliveryProof")
 
   @@index([ownerUserId, purpose])
   @@map("media_objects")
@@ -171,6 +214,9 @@ model ServiceZone {
   sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  pickupOrders  Order[] @relation("PickupZone")
+  deliveryOrders Order[] @relation("DeliveryZone")
 
   @@index([active, sortOrder])
   @@map("service_zones")
@@ -218,7 +264,223 @@ model PriceSnapshot {
   createdAt            DateTime    @default(now())
 
   pricingRuleVersion PricingRuleVersion @relation(fields: [pricingRuleVersionId], references: [id])
+  order              Order?
 
   @@index([createdAt])
   @@map("price_snapshots")
+}
+
+/// Delivery request (ADR-004 / ADR-006 / ADR-008). Pickup and drop-off live on the aggregate.
+model Order {
+  id                    String       @id @default(cuid())
+  orderNumber           String       @unique
+  customerUserId        String
+  status                OrderStatus
+  mode                  DeliveryMode
+  weightClass           WeightClass
+  specialHandlingNotes  String
+  intermediateStopCount Int          @default(0)
+  pickupZoneId          String
+  deliveryZoneId        String
+  pickupShopName        String
+  deliveryShopName      String
+  pickupLandmark        String
+  deliveryLandmark      String
+  pickupLat             Float?
+  pickupLng             Float?
+  deliveryLat           Float?
+  deliveryLng           Float?
+  pickupPhotoMediaId    String?
+  deliveryPhotoMediaId  String?
+  deliveryProofMediaId  String?
+  priceSnapshotId       String       @unique
+  assignedDriverUserId  String?
+  cancelReason          String?
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+
+  customer       User         @relation("OrderCustomer", fields: [customerUserId], references: [id])
+  assignedDriver User?        @relation("OrderDriver", fields: [assignedDriverUserId], references: [id])
+  pickupZone     ServiceZone  @relation("PickupZone", fields: [pickupZoneId], references: [id])
+  deliveryZone   ServiceZone  @relation("DeliveryZone", fields: [deliveryZoneId], references: [id])
+  pickupPhoto    MediaObject? @relation("PickupPhoto", fields: [pickupPhotoMediaId], references: [id])
+  deliveryPhoto  MediaObject? @relation("DeliveryPhoto", fields: [deliveryPhotoMediaId], references: [id])
+  deliveryProof  MediaObject? @relation("DeliveryProof", fields: [deliveryProofMediaId], references: [id])
+  priceSnapshot  PriceSnapshot @relation(fields: [priceSnapshotId], references: [id])
+  transitions    OrderTransition[]
+  dispatchOffers DispatchOffer[]
+  rating         Rating?
+  complaints     Complaint[]
+  ledgerEntries  LedgerEntry[]
+
+  @@index([customerUserId, createdAt])
+  @@index([status, updatedAt])
+  @@index([assignedDriverUserId, status])
+  @@map("orders")
+}
+
+/// Append-only lifecycle history (ADR-004).
+model OrderTransition {
+  id          String           @id @default(cuid())
+  orderId     String
+  fromStatus  OrderStatus?
+  toStatus    OrderStatus
+  action      String
+  actorUserId String?
+  source      TransitionSource
+  reason      String?
+  createdAt   DateTime         @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+  @@map("order_transitions")
+}
+
+enum ComplaintStatus {
+  open
+  investigated
+  dismissed
+}
+
+/// ADR-012 Option A. One rating per completed order. No customer edit.
+model Rating {
+  id             String   @id @default(cuid())
+  orderId        String   @unique
+  customerUserId String
+  driverUserId   String?
+  stars          Int
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  order    Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  customer User  @relation("RatingCustomer", fields: [customerUserId], references: [id])
+  driver   User? @relation("RatingDriver", fields: [driverUserId], references: [id])
+
+  @@index([customerUserId, createdAt])
+  @@map("ratings")
+}
+
+/// ADR-012. Linked to an order. No severity scale in v1.
+model Complaint {
+  id             String          @id @default(cuid())
+  orderId        String
+  customerUserId String
+  body           String
+  status         ComplaintStatus @default(open)
+  adminNote      String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  order    Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  customer User  @relation("ComplaintCustomer", fields: [customerUserId], references: [id])
+
+  @@index([orderId, createdAt])
+  @@index([status, createdAt])
+  @@map("complaints")
+}
+
+/// ADR-011. Online switch. Presence is not a GPS sample.
+model DriverAvailability {
+  userId    String   @id
+  online    Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("driver_availability")
+}
+
+/// ADR-011. High-volume fixes. Deleted 24 hours after receivedAt.
+model DriverLocationSample {
+  id              String   @id @default(cuid())
+  driverUserId    String
+  latitude        Float
+  longitude       Float
+  accuracyMeters  Float
+  capturedAt      DateTime
+  receivedAt      DateTime @default(now())
+
+  driver User @relation(fields: [driverUserId], references: [id], onDelete: Cascade)
+
+  @@index([driverUserId, receivedAt])
+  @@map("driver_location_samples")
+}
+
+enum DispatchOfferStatus {
+  offered
+  accepted
+  rejected
+  expired
+  cancelled
+}
+
+/// ADR-007. One open offer per driver. First accept wins.
+model DispatchOffer {
+  id           String              @id @default(cuid())
+  orderId      String
+  driverUserId String
+  status       DispatchOfferStatus @default(offered)
+  expiresAt    DateTime
+  createdAt    DateTime            @default(now())
+  resolvedAt   DateTime?
+
+  order  Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  driver User  @relation(fields: [driverUserId], references: [id], onDelete: Cascade)
+
+  @@index([driverUserId, status])
+  @@index([orderId, status])
+  @@index([status, expiresAt])
+  @@map("dispatch_offers")
+}
+
+/// ADR-017. One record per actor + method + path + key. Expires after 24 hours.
+model IdempotencyRecord {
+  id             String   @id @default(cuid())
+  actorUserId    String
+  method         String
+  path           String
+  key            String
+  requestHash    String
+  responseStatus Int
+  responseBody   Json
+  createdAt      DateTime @default(now())
+  expiresAt      DateTime
+
+  actor User @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
+
+  @@unique([actorUserId, method, path, key])
+  @@index([expiresAt])
+  @@map("idempotency_records")
+}
+
+enum LedgerEntryKind {
+  delivery_driver_earning
+  delivery_platform_share
+  driver_bonus
+  penalty
+  adjustment
+  settlement_payout
+}
+
+/// ADR-013. Append-only. Delivery kinds are unique per order via a partial index.
+model LedgerEntry {
+  id           String          @id @default(cuid())
+  driverUserId String?
+  orderId      String?
+  kind         LedgerEntryKind
+  amount       Int
+  currencyCode String
+  reason       String?
+  actorUserId  String?
+  createdAt    DateTime        @default(now())
+
+  driver User?  @relation("LedgerDriver", fields: [driverUserId], references: [id], onDelete: Restrict)
+  order  Order? @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  actor  User?  @relation("LedgerActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([driverUserId, createdAt])
+  @@index([createdAt])
+  @@index([orderId])
+  @@map("ledger_entries")
 }

@@ -11,6 +11,7 @@ import {
 } from "@/lib/demo-pricing-config";
 import { INDUSTRIAL_AREAS } from "@/lib/demo-pricing-areas";
 import { formatSyp } from "@/lib/demo-currency";
+import { apiPublishPricing, loadApiSession } from "@/lib/backend-api";
 import type { DriverAccount } from "@/lib/driver-types";
 
 function readDriverAccounts(): DriverAccount[] {
@@ -24,8 +25,9 @@ function readDriverAccounts(): DriverAccount[] {
 }
 
 /**
- * Admin tab — edit demo delivery prices, default/per-driver shares, bonuses.
- * Demo only (ADR-006 / ADR-013 still PROPOSED).
+ * Admin tab — edit delivery prices. With an admin API session, publish goes to
+ * POST /admin/pricing-rules (ADR-006). Per-driver demo share overrides stay local;
+ * server trip bonuses use PATCH /admin/drivers/:id/trip-bonus.
  */
 export function AdminPricingPanel() {
   const [cfg, setCfg] = useState<DemoPricingConfig>(() => getPricingConfig());
@@ -53,6 +55,21 @@ export function AdminPricingPanel() {
     savePricingConfig(next);
     setCfg(getPricingConfig());
     setMsg(note);
+    const session = loadApiSession();
+    if (session?.role === "admin") {
+      void apiPublishPricing({
+        zoneBases: next.zoneBases,
+        crossZoneMultiplier: next.crossZoneMultiplier,
+        vipSurchargeRate: next.vipSurchargeRate,
+        perStop: next.perStop,
+        heavySurcharge: 0,
+        routeOverrides: next.routeOverrides,
+      })
+        .then(() => setMsg(`${note} · نُشر على السيرفر`))
+        .catch((err: unknown) =>
+          setMsg(err instanceof Error ? err.message : "فشل نشر السعر"),
+        );
+    }
     window.setTimeout(() => setMsg(null), 2500);
   }
 
@@ -108,8 +125,7 @@ export function AdminPricingPanel() {
       <div>
         <h2 className="text-lg font-bold text-white">الأسعار والنسب</h2>
         <p className="mt-1 text-sm text-slate-400">
-          تعديل أسعار التوصيل التجريبية، نسبة السائق الافتراضية، نسب خاصة وبونص لكل سائق.
-          التغييرات تنعكس فوراً على معاينة سعر العميل وحصّة السائق (تخزين محلي).
+          أسعار التوصيل، نسبة السائق، والبونص. أسعار التوصيل تُنشر للعملاء.
         </p>
       </div>
 
@@ -346,7 +362,7 @@ export function AdminPricingPanel() {
         onClick={resetDefaults}
         className="ui-btn-ghost px-4 py-2 text-sm"
       >
-        إعادة القيم الافتراضية التجريبية
+        إعادة القيم الافتراضية
       </button>
     </section>
   );

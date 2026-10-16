@@ -51,7 +51,7 @@ export interface DemoPriceBreakdown {
   modeSurcharge: number;
   stopsSurcharge: number;
   total: number;
-  isDemo: true;
+  isDemo: boolean;
   disclaimer: string;
 }
 
@@ -64,10 +64,23 @@ export interface DriverInfo {
 
 export interface ActiveOrder {
   id: string;
+  /** Server order id when the order was created via POST /orders. */
+  serverOrderId?: string;
+  orderNumber?: string;
   draft: OrderDraft;
   price: DemoPriceBreakdown;
   status: OrderStatus;
   driver?: DriverInfo;
+  /** Latest assigned-driver point from the tracking event. Absent before assignment. */
+  driverPoint?: {
+    latitude: number;
+    longitude: number;
+    accuracyMeters: number;
+    capturedAt: string;
+    freshness: string;
+  };
+  /** Server order has reached COMPLETED (ADR-012). */
+  ratingEligible?: boolean;
   createdAt: string;
   cancelReason?: string;
   cancelledAt?: string;

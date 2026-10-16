@@ -28,6 +28,22 @@ import {
   type DriverApprovalStatus,
 } from "./demo-admin-ops";
 import { splitDemoDeliveryCharge } from "./demo-admin-config";
+import { REALTIME_EVENT, type RealtimeDetail } from "./realtime-events";
+import {
+  apiAcceptDispatchOffer,
+  apiDriverTrip,
+  apiListDriverOffers,
+  apiLogin,
+  apiMe,
+  apiPostDriverLocation,
+  apiRegister,
+  apiRejectDispatchOffer,
+  apiSetDriverAvailability,
+  apiUploadDriverId,
+  clearApiSession,
+  loadApiSession,
+  type ServerDispatchOffer,
+} from "./backend-api";
 import {
   basketSizeLabel,
   driverCanTakePackage,
@@ -71,6 +87,53 @@ function normalizeAccount(a: DriverAccount): DriverAccount {
     },
   };
 }
+
+function metersBetween(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+): number {
+  const toRad = (n: number) => (n * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6371000 * Math.asin(Math.sqrt(s));
+}
+
+function offerFromServer(row: ServerDispatchOffer): DriverOffer {
+  return {
+    id: row.id,
+    serverOfferId: row.id,
+    orderNumber: row.order.orderNumber,
+    customerName: "زبون",
+    customerPhone: "",
+    mode: row.order.mode === "vip" ? "vip" : "standard",
+    pickup: row.order.pickup,
+    delivery: row.order.delivery,
+    stops: [],
+    earningsLabel: row.earnings?.currencyLabel ?? row.order.price.currencyLabel,
+    earningsAmount:
+      row.earnings?.driverEarning ??
+      Math.round(row.order.price.totalAmount * 0.75),
+    distanceKm: 0,
+    expiresInSec: row.expiresInSec,
+    createdAt: row.createdAt,
+    packageWeightClass: row.order.weightClass === "heavy" ? "heavy" : "light",
+    linkedOrderId: row.order.id,
+  };
+}
+
+const SERVER_TRIP: {
+  path: "start-to-pickup" | "pickup" | "in-transit" | "deliver";
+  label: string;
+  phase: DemoTripPhase;
+}[] = [
+  { path: "start-to-pickup", label: "توجهت للاستلام", phase: "heading_pickup" },
+  { path: "pickup", label: "استلمت الطلب", phase: "at_pickup" },
+  { path: "in-transit", label: "بالطريق للتسليم", phase: "in_transit" },
+  { path: "deliver", label: "تم التسليم", phase: "delivered" },
+];
 
 function offerWeightClass(o: DriverOffer): PackageWeightClass {
   if (o.packageWeightClass === "heavy" || o.packageWeightClass === "light") {
@@ -118,21 +181,27 @@ interface DriverContextValue {
     lastName: string;
     birthDate: string;
     idPhotoDataUrl: string;
+    idPhotoFile: File;
     phone: string;
     password: string;
     vehicle: DriverVehicle;
-  }) => { ok: true } | { ok: false; error: string };
+  }) => Promise<{ ok: true } | { ok: false; error: string }>;
   login: (input: {
-    displayName: string;
+    phone: string;
     password: string;
-  }) => { ok: true } | { ok: false; error: string };
+  }) => Promise<{ ok: true } | { ok: false; error: string }>;
   logout: () => void;
-  setAvailability: (a: DriverAvailability) => { ok: true } | { ok: false; error: string };
+  setAvailability: (
+    a: DriverAvailability,
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
   updateSettings: (patch: Partial<DriverSettings>) => void;
   acceptOffer: () => void;
   rejectOffer: () => void;
   /** Driver only confirms cash collected — GPS auto-advances earlier phases */
   completeDeliveryWithPayment: () => void;
+  /** Server trip: one checkpoint at a time (ADR-004). */
+  advanceServerTrip: () => Promise<void>;
+  serverTripLabel: string | null;
   endDay: () => void;
   clearDayAndContinue: () => void;
   simulateOfferNow: () => void;
@@ -186,6 +255,9 @@ export function DriverProvider({ children }: { children: ReactNode }) {
   const [availability, setAvailabilityState] = useState<DriverAvailability>("offline");
   const [settings, setSettings] = useState<DriverSettings>(DEFAULT_DRIVER_SETTINGS);
   const [offer, setOffer] = useState<DriverOffer | null>(null);
+  const [serverTripStep, setServerTripStep] = useState(0);
+  const offerRef = useRef<DriverOffer | null>(null);
+  offerRef.current = offer;
   const [offerSecondsLeft, setOfferSecondsLeft] = useState(0);
   const [activeOffer, setActiveOffer] = useState<DriverOffer | null>(null);
   const [queuedOffer, setQueuedOffer] = useState<DriverOffer | null>(null);
@@ -195,6 +267,12 @@ export function DriverProvider({ children }: { children: ReactNode }) {
   const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [locationSharing, setLocationSharing] = useState(false);
+  const gpsSampleRef = useRef<{
+    lat: number;
+    lng: number;
+    accuracy: number;
+    capturedAt: string;
+  } | null>(null);
   const phaseEnteredAtRef = useRef<number>(Date.now());
   const lastAutoPhaseRef = useRef<DemoTripPhase | null>(null);
   /** Order IDs this driver already finished / rejected / timed out — never re-offer */
@@ -271,6 +349,12 @@ export function DriverProvider({ children }: { children: ReactNode }) {
     setLocationSharing(true);
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
+        gpsSampleRef.current = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+          capturedAt: new Date(pos.timestamp || Date.now()).toISOString(),
+        };
         setPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         setLocationError(null);
       },
@@ -290,6 +374,30 @@ export function DriverProvider({ children }: { children: ReactNode }) {
       setLocationSharing(false);
     };
   }, [account, step]);
+
+  useEffect(() => {
+    if (!account || approvalStatus !== "approved") return;
+    if (availability !== "available" && !activeOffer) return;
+    let lastSent = 0;
+    let lastPoint: { lat: number; lng: number } | null = null;
+    const tick = window.setInterval(() => {
+      const sample = gpsSampleRef.current;
+      if (!sample || !Number.isFinite(sample.accuracy)) return;
+      const moved = lastPoint
+        ? metersBetween(lastPoint, { lat: sample.lat, lng: sample.lng })
+        : Number.POSITIVE_INFINITY;
+      if (lastPoint && Date.now() - lastSent < 5000 && moved < 20) return;
+      lastSent = Date.now();
+      lastPoint = { lat: sample.lat, lng: sample.lng };
+      void apiPostDriverLocation({
+        latitude: sample.lat,
+        longitude: sample.lng,
+        accuracyMeters: sample.accuracy,
+        capturedAt: sample.capturedAt,
+      }).catch(() => undefined);
+    }, 1000);
+    return () => window.clearInterval(tick);
+  }, [account, approvalStatus, availability, activeOffer]);
 
   // Publish live presence for admin map (even when offline / standing still)
   useEffect(() => {
@@ -324,6 +432,7 @@ export function DriverProvider({ children }: { children: ReactNode }) {
   // (Later: GPS proximity to map points — for now timed so QA works without driving.)
   useEffect(() => {
     if (!activeOffer || !tripPhase || step !== "active") return;
+    if (activeOffer.serverOfferId) return;
     if (tripPhase === "delivered") return;
 
     const DEMO_PHASE_MS = 8000;
@@ -353,8 +462,8 @@ export function DriverProvider({ children }: { children: ReactNode }) {
       void pushNotify(
         "تحديث الرحلة",
         next === "at_pickup"
-          ? "عند نقطة الاستلام (تجريبي · كل 8 ثوانٍ)"
-          : "بالطريق للتسليم (تجريبي · كل 8 ثوانٍ)",
+          ? "عند نقطة الاستلام"
+          : "بالطريق للتسليم",
       );
     }, DEMO_PHASE_MS);
 
@@ -379,15 +488,31 @@ export function DriverProvider({ children }: { children: ReactNode }) {
         );
         next = open[0]?.offer;
       } else if (!matches(next)) {
+        if (next.serverOfferId) {
+          setOffer(null);
+          setOfferSecondsLeft(0);
+          return false;
+        }
         const open = listOpenDemoOffers().find(
           (j) => !isSkipped(j.orderId) && matches(j.offer),
         );
         next = open?.offer;
       }
-      if (!next || isSkipped(next.linkedOrderId)) {
+      if (!next || isSkipped(next.linkedOrderId) || isSkipped(next.serverOfferId)) {
         setOffer(null);
         setOfferSecondsLeft(0);
         return false;
+      }
+      if (next.serverOfferId) {
+        if (offerRef.current?.id === next.id) return true;
+        setOffer({
+          ...next,
+          packageWeightClass: offerWeightClass(next),
+          expiresInSec: next.expiresInSec || OFFER_WINDOW_SEC,
+        });
+        setOfferSecondsLeft(next.expiresInSec || OFFER_WINDOW_SEC);
+        alertIncomingOffer(next);
+        return true;
       }
       const job = next.linkedOrderId ? getDemoJob(next.linkedOrderId) : undefined;
       if (job && job.phase !== "offered") {
@@ -425,6 +550,19 @@ export function DriverProvider({ children }: { children: ReactNode }) {
     if (step !== "home" && !(step === "active" && nearDelivery)) return;
 
     const tryPull = () => {
+      if (loadApiSession()?.role === "driver") {
+        void apiListDriverOffers()
+          .then((rows) => {
+            const next = rows.map(offerFromServer).find(
+              (row) =>
+                !isSkipped(row.serverOfferId) &&
+                driverCanTakePackage(account?.vehicle.basketSize, offerWeightClass(row)),
+            );
+            if (next) presentOffer(next);
+          })
+          .catch(() => presentOffer());
+        return;
+      }
       presentOffer();
     };
 
@@ -446,6 +584,27 @@ export function DriverProvider({ children }: { children: ReactNode }) {
     step,
     presentOffer,
   ]);
+
+  useEffect(() => {
+    function onRealtime(event: Event) {
+      const detail = (event as CustomEvent<RealtimeDetail>).detail;
+      if (!detail) return;
+      if (detail.event === "dispatch.offer.expired") {
+        const offerId = detail.payload.offerId;
+        if (typeof offerId === "string" && offerRef.current?.serverOfferId === offerId) {
+          setOffer(null);
+          setOfferSecondsLeft(0);
+        }
+        return;
+      }
+      if (detail.event !== "dispatch.offer.created") return;
+      const row = detail.payload as ServerDispatchOffer;
+      if (!row?.id || !row.order?.id) return;
+      presentOffer(offerFromServer(row));
+    }
+    window.addEventListener(REALTIME_EVENT, onRealtime);
+    return () => window.removeEventListener(REALTIME_EVENT, onRealtime);
+  }, [presentOffer]);
 
   // 15s countdown on the current offer (home or near-delivery on active trip)
   useEffect(() => {
@@ -475,11 +634,12 @@ export function DriverProvider({ children }: { children: ReactNode }) {
   }, [offer?.id, step, offer?.expiresInSec]);
 
   const register = useCallback(
-    (input: {
+    async (input: {
       firstName: string;
       lastName: string;
       birthDate: string;
       idPhotoDataUrl: string;
+      idPhotoFile: File;
       phone: string;
       password: string;
       vehicle: DriverVehicle;
@@ -496,7 +656,8 @@ export function DriverProvider({ children }: { children: ReactNode }) {
         return { ok: false as const, error: "ارفعوا صورة الهوية" };
       }
       if (phone.length < 8) return { ok: false as const, error: "رقم الهاتف ناقص" };
-      if (password.length < 4) return { ok: false as const, error: "كلمة المرور قصيرة" };
+      if (password.length < 8) return { ok: false as const, error: "كلمة المرور 8 أحرف على الأقل" };
+      if (!input.idPhotoFile) return { ok: false as const, error: "ارفعوا صورة الهوية" };
       if (!input.vehicle.motorcycleModel.trim() || !input.vehicle.plateNumber.trim()) {
         return { ok: false as const, error: "عبّوا معلومات الموتور والنمرة" };
       }
@@ -507,21 +668,42 @@ export function DriverProvider({ children }: { children: ReactNode }) {
         return { ok: false as const, error: "اكتبوا السعة القادرين تتحملوها" };
       }
 
-      const accounts = readJson<DriverAccount[]>(ACCOUNTS_KEY, []).map(normalizeAccount);
-      if (accounts.some((a) => a.displayName === name)) {
-        return { ok: false as const, error: "الاسم مسجّل مسبقاً — اعملوا دخول" };
+      let mediaId: string;
+      let userId: string;
+      let userPhone: string;
+      try {
+        mediaId = await apiUploadDriverId(input.idPhotoFile);
+        const user = await apiRegister({
+          phone,
+          password,
+          role: "driver",
+          firstName,
+          lastName,
+          birthDate: input.birthDate,
+          vehicleDescription: `${input.vehicle.motorcycleModel.trim()} · ${input.vehicle.plateNumber.trim()}`,
+          basketSize: input.vehicle.basketSize,
+          idPhotoMediaId: mediaId,
+        });
+        userId = user.id;
+        userPhone = user.phone;
+      } catch (e) {
+        return {
+          ok: false as const,
+          error: e instanceof Error ? e.message : "فشل تسجيل السائق",
+        };
       }
 
+      const accounts = readJson<DriverAccount[]>(ACCOUNTS_KEY, []).map(normalizeAccount);
       const basketLabel = basketSizeLabel(input.vehicle.basketSize);
       const accountNew: DriverAccount = {
-        id: `drv-${Date.now().toString(36)}`,
+        id: userId,
         displayName: name,
         firstName,
         lastName,
         birthDate: input.birthDate,
         idPhotoDataUrl: input.idPhotoDataUrl,
-        phone,
-        password,
+        phone: userPhone,
+        password: "",
         vehicle: {
           motorcycleModel: input.vehicle.motorcycleModel.trim(),
           basketSize: input.vehicle.basketSize,
@@ -532,7 +714,10 @@ export function DriverProvider({ children }: { children: ReactNode }) {
         createdAt: new Date().toISOString(),
         approvalStatus: "pending",
       };
-      writeJson(ACCOUNTS_KEY, [...accounts, accountNew]);
+      writeJson(
+        ACCOUNTS_KEY,
+        [...accounts.filter((a) => a.phone !== userPhone), accountNew],
+      );
       registerDriverJoinRequest({
         driverId: accountNew.id,
         displayName: name,
@@ -556,23 +741,70 @@ export function DriverProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const login = useCallback((input: { displayName: string; password: string }) => {
-    const name = input.displayName.trim();
-    const accounts = readJson<DriverAccount[]>(ACCOUNTS_KEY, []).map(normalizeAccount);
-    const found = accounts.find((a) => a.displayName === name);
-    if (!found || found.password !== input.password) {
-      return { ok: false as const, error: "الاسم أو كلمة المرور غلط" };
+  const login = useCallback(async (input: { phone: string; password: string }) => {
+    try {
+      const user = await apiLogin(input.phone.trim(), input.password);
+      if (user.role !== "driver") {
+        return { ok: false as const, error: "هذا الحساب ليس حساب سائق" };
+      }
+      const accounts = readJson<DriverAccount[]>(ACCOUNTS_KEY, []).map(normalizeAccount);
+      const found =
+        accounts.find((a) => a.id === user.id || a.phone === user.phone) ??
+        ({
+          id: user.id,
+          displayName: user.phone,
+          firstName: "",
+          lastName: "",
+          birthDate: "",
+          idPhotoDataUrl: "",
+          phone: user.phone,
+          password: "",
+          vehicle: {
+            motorcycleModel: "",
+            basketSize: "small",
+            capacityNote: "",
+            basketInfo: "",
+            plateNumber: "",
+          },
+          createdAt: new Date().toISOString(),
+          approvalStatus: user.driverApprovalStatus ?? "pending",
+        } satisfies DriverAccount);
+      const status = user.driverApprovalStatus ?? resolveApproval(found);
+      localStorage.setItem(SESSION_KEY, found.id);
+      setAccount({ ...found, id: user.id, phone: user.phone, approvalStatus: status });
+      setApprovalStatus(status);
+      setStep("home");
+      setAvailabilityState("offline");
+      return { ok: true as const };
+    } catch (e) {
+      return {
+        ok: false as const,
+        error: e instanceof Error ? e.message : "فشل الدخول",
+      };
     }
-    const status = resolveApproval(found);
-    localStorage.setItem(SESSION_KEY, found.id);
-    setAccount({ ...found, approvalStatus: status });
-    setApprovalStatus(status);
-    setStep("home");
-    setAvailabilityState("offline");
-    return { ok: true as const };
   }, []);
 
+  useEffect(() => {
+    if (!account || step === "auth") return;
+    const tick = window.setInterval(() => {
+      void apiMe()
+        .then((me) => {
+          if (me.role === "driver" && me.driverApprovalStatus) {
+            setApprovalStatus(me.driverApprovalStatus);
+            setAccount((current) =>
+              current
+                ? { ...current, approvalStatus: me.driverApprovalStatus! }
+                : current,
+            );
+          }
+        })
+        .catch(() => undefined);
+    }, 8000);
+    return () => window.clearInterval(tick);
+  }, [account?.id, step]);
+
   const logout = useCallback(() => {
+    clearApiSession();
     localStorage.removeItem(SESSION_KEY);
     setAccount(null);
     setAvailabilityState("offline");
@@ -598,7 +830,7 @@ export function DriverProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setAvailability = useCallback(
-    (a: DriverAvailability) => {
+    async (a: DriverAvailability) => {
       if (a === "available" && approvalStatus !== "approved") {
         return {
           ok: false as const,
@@ -608,6 +840,14 @@ export function DriverProvider({ children }: { children: ReactNode }) {
               : approvalStatus === "suspended"
                 ? "الحساب معلّق من الأدمن"
                 : "تم رفض طلب الانضمام — تواصلوا مع الإدارة",
+        };
+      }
+      try {
+        await apiSetDriverAvailability(a === "available");
+      } catch (e) {
+        return {
+          ok: false as const,
+          error: e instanceof Error ? e.message : "تعذّر تحديث حالة الاتصال",
         };
       }
       setAvailabilityState(a);
@@ -630,57 +870,88 @@ export function DriverProvider({ children }: { children: ReactNode }) {
 
   const acceptOffer = useCallback(() => {
     if (!offer || !account || approvalStatus !== "approved") return;
+    const current = offer;
 
-    // Second order while finishing first (≤5 min): queue it
-    if (activeOffer && nearDelivery && !queuedOffer) {
-      if (offer.linkedOrderId) {
+    void (async () => {
+      if (current.serverOfferId) {
+        try {
+          await apiAcceptDispatchOffer(current.serverOfferId, crypto.randomUUID());
+        } catch (e) {
+          showInAppToast(
+            "ما انقبل العرض",
+            e instanceof Error ? e.message : "حاولوا مرة ثانية",
+            "warn",
+          );
+          return;
+        }
+      }
+
+      // Second order while finishing first (≤5 min): queue it
+      if (activeOffer && nearDelivery && !queuedOffer) {
+        if (current.linkedOrderId && !current.serverOfferId) {
+          acceptDemoOffer({
+            orderId: current.linkedOrderId,
+            driverId: account.id,
+            driverName: account.displayName,
+            driverPhone: account.phone,
+            driverPlate: account.vehicle.plateNumber,
+          });
+        }
+        setQueuedOffer(current);
+        setOffer(null);
+        setOfferSecondsLeft(0);
+        void pushNotify(
+          "تم قبول الطلب الثاني",
+          "بعد تسليم الطلب الأول رح تروحوا تجيبوا الطلب الجديد · الزبون بيشوف إنكم بالطريق",
+          "success",
+        );
+        return;
+      }
+
+      if (activeOffer) return;
+
+      if (current.linkedOrderId && !current.serverOfferId) {
         acceptDemoOffer({
-          orderId: offer.linkedOrderId,
+          orderId: current.linkedOrderId,
           driverId: account.id,
           driverName: account.displayName,
           driverPhone: account.phone,
           driverPlate: account.vehicle.plateNumber,
         });
       }
-      setQueuedOffer(offer);
+      setActiveOffer(current);
+      setServerTripStep(0);
+      setTripPhase("heading_pickup");
+      setNearDelivery(false);
+      phaseEnteredAtRef.current = Date.now();
+      lastAutoPhaseRef.current = "heading_pickup";
       setOffer(null);
       setOfferSecondsLeft(0);
-      void pushNotify(
-        "تم قبول الطلب الثاني",
-        "بعد تسليم الطلب الأول رح تروحوا تجيبوا الطلب الجديد · الزبون بيشوف إنكم بالطريق",
-        "success",
-      );
-      return;
-    }
-
-    if (activeOffer) return;
-
-    if (offer.linkedOrderId) {
-      acceptDemoOffer({
-        orderId: offer.linkedOrderId,
-        driverId: account.id,
-        driverName: account.displayName,
-        driverPhone: account.phone,
-        driverPlate: account.vehicle.plateNumber,
-      });
-    }
-    setActiveOffer(offer);
-    setTripPhase("heading_pickup");
-    setNearDelivery(false);
-    phaseEnteredAtRef.current = Date.now();
-    lastAutoPhaseRef.current = "heading_pickup";
-    setOffer(null);
-    setOfferSecondsLeft(0);
-    setAvailabilityState("offline");
-    setStep("active");
+      setAvailabilityState("offline");
+      setStep("active");
+    })();
   }, [offer, account, approvalStatus, activeOffer, nearDelivery, queuedOffer]);
 
   const rejectOffer = useCallback(() => {
-    if (offer) {
-      skipOrder(offer.linkedOrderId ?? offer.id);
-    }
-    setOffer(null);
-    setOfferSecondsLeft(0);
+    if (!offer) return;
+    const current = offer;
+    void (async () => {
+      if (current.serverOfferId) {
+        try {
+          await apiRejectDispatchOffer(current.serverOfferId, crypto.randomUUID());
+        } catch (e) {
+          showInAppToast(
+            "ما انرفض العرض",
+            e instanceof Error ? e.message : "حاولوا مرة ثانية",
+            "warn",
+          );
+          return;
+        }
+      }
+      skipOrder(current.serverOfferId ?? current.linkedOrderId ?? current.id);
+      setOffer(null);
+      setOfferSecondsLeft(0);
+    })();
   }, [offer]);
 
   const finishTripLocal = useCallback(
@@ -700,7 +971,9 @@ export function DriverProvider({ children }: { children: ReactNode }) {
         chargeTotal ??
         job?.totalCharge ??
         tripOffer.earningsAmount;
-      const { driverEarning } = splitDemoDeliveryCharge(charge, account.id);
+      const driverEarning = tripOffer.serverOfferId
+        ? tripOffer.earningsAmount
+        : splitDemoDeliveryCharge(charge, account.id).driverEarning;
 
       const trip: DriverCompletedTrip = {
         id: `trip-${Date.now().toString(36)}`,
@@ -740,6 +1013,7 @@ export function DriverProvider({ children }: { children: ReactNode }) {
       if (nextQueued) {
         setQueuedOffer(null);
         setActiveOffer(nextQueued);
+        setServerTripStep(0);
         setTripPhase("heading_pickup");
         phaseEnteredAtRef.current = Date.now();
         lastAutoPhaseRef.current = "heading_pickup";
@@ -763,6 +1037,30 @@ export function DriverProvider({ children }: { children: ReactNode }) {
     },
     [account, queuedOffer],
   );
+
+  const advanceServerTrip = useCallback(async () => {
+    if (!activeOffer?.serverOfferId || !activeOffer.linkedOrderId) return;
+    const step = SERVER_TRIP[serverTripStep];
+    if (!step) return;
+    try {
+      await apiDriverTrip(activeOffer.linkedOrderId, step.path);
+      if (step.path === "deliver") {
+        await apiDriverTrip(activeOffer.linkedOrderId, "complete");
+        finishTripLocal(activeOffer);
+        setServerTripStep(0);
+        return;
+      }
+      const next = SERVER_TRIP[serverTripStep + 1];
+      setServerTripStep((value) => value + 1);
+      if (next) setTripPhase(next.phase);
+    } catch (error) {
+      showInAppToast(
+        "ما انسجلت المرحلة",
+        error instanceof Error ? error.message : "حاولوا مرة ثانية",
+        "warn",
+      );
+    }
+  }, [activeOffer, serverTripStep, finishTripLocal]);
 
   /** Only manual action: cash collected → close order */
   const completeDeliveryWithPayment = useCallback(() => {
@@ -837,6 +1135,10 @@ export function DriverProvider({ children }: { children: ReactNode }) {
       acceptOffer,
       rejectOffer,
       completeDeliveryWithPayment,
+      advanceServerTrip,
+      serverTripLabel: activeOffer?.serverOfferId
+        ? (SERVER_TRIP[serverTripStep]?.label ?? null)
+        : null,
       endDay,
       clearDayAndContinue,
       simulateOfferNow,
@@ -866,6 +1168,8 @@ export function DriverProvider({ children }: { children: ReactNode }) {
       acceptOffer,
       rejectOffer,
       completeDeliveryWithPayment,
+      advanceServerTrip,
+      serverTripStep,
       endDay,
       clearDayAndContinue,
       simulateOfferNow,

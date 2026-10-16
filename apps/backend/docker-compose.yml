@@ -18,6 +18,20 @@ services:
       timeout: 5s
       retries: 10
 
+  minio:
+    image: minio/minio:latest
+    container_name: sareee-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: sareee
+      MINIO_ROOT_PASSWORD: sareee-minio-secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - sareee_minio_data:/data
+
   redis:
     image: redis:7-alpine
     container_name: sareee-redis
@@ -35,3 +49,4 @@ services:
 volumes:
   sareee_pg_data:
   sareee_redis_data:
+  sareee_minio_data:

@@ -1,6 +1,6 @@
 /**
- * Phase 1 backend base URL for health probes only.
- * Domain APIs (auth/orders) are not wired yet — demo still uses localStorage (Phase 9 cutover).
+ * Backend base URL. Auth, zones, pricing, orders, and the Socket.IO path use this host.
+ * Driver availability, location, and offers use the same host.
  */
 export function getApiBaseUrl(): string {
   return (
